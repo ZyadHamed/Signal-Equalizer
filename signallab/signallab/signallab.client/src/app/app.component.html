@@ -1,0 +1,127 @@
+<div class="app-shell">
+
+  <!-- ══ SIDEBAR ══ -->
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <div class="logo-icon">Ψ</div>
+      <div class="logo-text">
+        <span class="logo-main">SignalLab</span>
+        <span class="logo-sub">Transform Analyzer</span>
+      </div>
+    </div>
+
+    <!-- Domains -->
+    <div class="sidebar-section">
+      <div class="section-label">
+        Domains
+        <button class="sel-all-btn" (click)="toggleSelectAll()" [class.on]="allSelected">
+          {{ allSelected ? 'Deselect All' : 'Select All' }}
+        </button>
+      </div>
+      <nav class="sidebar-nav">
+        <div class="nav-row" *ngFor="let panel of panels" [class.active]="activePanel===panel.id">
+          <input type="checkbox" class="domain-chk"
+                 [(ngModel)]="panel.selected" (ngModelChange)="onDomainToggle(panel)" />
+          <button class="nav-btn" [class.active]="activePanel===panel.id"
+                  (click)="selectPanel(panel.id)">
+            <span class="nav-icon">{{ panelIcons[panel.id] }}</span>
+            <span>{{ panel.title }}</span>
+          </button>
+        </div>
+      </nav>
+    </div>
+
+    <!-- Controls -->
+    <div class="sidebar-section">
+      <div class="section-label">Controls <span class="hint">(selected domains)</span></div>
+      <div class="ctrl">
+        <label>Sample Rate <span class="val">{{ globalSampleRate }} Hz</span></label>
+        <input type="range" min="200" max="8000" step="100"
+               [(ngModel)]="globalSampleRate" (ngModelChange)="regenerateSignals()" />
+      </div>
+      <div class="ctrl">
+        <label>Duration <span class="val">{{ globalDuration | number:'1.1-1' }} s</span></label>
+        <input type="range" min="0.1" max="10" step="0.1"
+               [(ngModel)]="globalDuration" (ngModelChange)="regenerateSignals()" />
+      </div>
+      <div class="ctrl">
+        <label>Noise <span class="val">{{ noiseLevel | number:'1.2-2' }}</span></label>
+        <input type="range" min="0" max="0.5" step="0.01"
+               [(ngModel)]="noiseLevel" (ngModelChange)="regenerateSignals()" />
+      </div>
+    </div>
+
+    <!-- Signal Source -->
+    <div class="sidebar-section">
+      <div class="section-label">Signal Source</div>
+      <div class="upload-box" (click)="fileInput.click()">
+        <span class="upload-icon">📂</span>
+        <span class="upload-name">{{ uploadedFileName || 'Upload Signal File' }}</span>
+        <span class="upload-hint">csv · txt · json · wav</span>
+      </div>
+      <input #fileInput type="file" accept=".csv,.txt,.json,.wav,.dat"
+             style="display:none" (change)="onFileUpload($event)" />
+
+      <div class="section-label" style="margin-top:10px">Presets</div>
+      <div class="preset-grid">
+        <button class="preset-btn" *ngFor="let p of presets"
+                [class.active]="currentPreset===p.id && signalSource==='preset'"
+                (click)="loadPreset(p.id)">
+          {{ p.label }}
+        </button>
+      </div>
+    </div>
+
+    <div class="sidebar-footer">Member A · Frontend</div>
+  </aside>
+
+  <!-- ══ MAIN ══ -->
+  <main class="main-content">
+    <header class="top-bar">
+      <h1 class="page-title">Signal Transform Analysis</h1>
+      <div class="top-actions">
+        <span class="pill" [class.file]="signalSource==='file'">
+          {{ signalSource==='file' ? '📂 '+uploadedFileName : currentPreset | titlecase }}
+        </span>
+        <span class="pill active">{{ globalSampleRate }}Hz · {{ globalDuration | number:'1.1-1' }}s</span>
+        <span class="pill">{{ selectedCount }} / {{ panels.length }} active</span>
+      </div>
+    </header>
+
+    <div class="panels-wrap">
+      <section class="t-panel"
+               *ngFor="let panel of panels"
+               [class.expanded]="panel.expanded"
+               [class.off]="!panel.selected"
+               [attr.id]="'panel_'+panel.id">
+
+        <!-- Panel header -->
+        <div class="p-header">
+          <div class="p-badge">{{ panelIcons[panel.id] }}</div>
+          <div class="p-info">
+            <div class="p-title">{{ panel.title }}</div>
+            <div class="p-desc">{{ panel.description }}</div>
+          </div>
+          <button class="p-expand-btn" (click)="fitPanel(panel)"
+                  [title]="panel.expanded ? 'Collapse' : 'Expand'">
+            {{ panel.expanded ? '⊟' : '⤢' }}
+          </button>
+        </div>
+
+        <!-- Inactive state -->
+        <div class="off-msg" *ngIf="!panel.selected">
+          <span>Domain deselected — enable checkbox in sidebar</span>
+        </div>
+
+        <!-- Viewer -->
+        <app-signal-viewer *ngIf="panel.selected"
+                           [signals]="panel.signals"
+                           [config]="panel.config"
+                           [height]="panel.height"
+                           [onFit]="getFitFn(panel)">
+        </app-signal-viewer>
+
+      </section>
+    </div>
+  </main>
+</div>

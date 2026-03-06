@@ -1,8 +1,7 @@
 import { NgModule } from '@angular/core';
 import { BrowserModule } from '@angular/platform-browser';
 import { FormsModule } from '@angular/forms';
-import { CommonModule } from '@angular/common';
-
+import { AppRoutingModule } from './app-routing.module';
 import { AppComponent } from './app.component';
 import { SignalViewerComponent } from './signal-viewer/signal-viewer.component';
 
@@ -12,9 +11,9 @@ import { SignalViewerComponent } from './signal-viewer/signal-viewer.component';
   ],
   imports: [
     BrowserModule,
+    AppRoutingModule,
     FormsModule,
-    CommonModule,
-    SignalViewerComponent,
+    SignalViewerComponent, // standalone → imports لا declarations
   ],
   providers: [],
   bootstrap: [AppComponent]

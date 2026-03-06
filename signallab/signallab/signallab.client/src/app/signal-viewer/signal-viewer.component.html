@@ -1,1 +1,198 @@
-<p>signal-viewer works!</p>
+<!-- Hidden file inputs -->
+<input #fileInput type="file" accept=".mp3,.wav,.json,.csv,.txt" hidden (change)="onFileSelected($event)">
+<input #settingsInput type="file" accept=".json" hidden (change)="onSettingsSelected($event)">
+
+<div class="sv-root">
+
+  <!-- ══════════════════ TOP BAR ══════════════════ -->
+  <header class="sv-topbar">
+
+    <div class="sv-logo">
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#1a73e8" stroke-width="2.2">
+        <path d="M3 12h3l2-7 4 14 2-7h3" />
+        <circle cx="19" cy="12" r="2" fill="#1a73e8" />
+      </svg>
+      <span class="sv-logo-text">Signal <strong>Equalizer</strong></span>
+    </div>
+
+    <button class="sv-btn primary" (click)="triggerFileInput()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+        <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
+        <polyline points="17 8 12 3 7 8" />
+        <line x1="12" y1="3" x2="12" y2="15" />
+      </svg>
+      Load Signal
+    </button>
+    <span class="sv-filename">{{ fileName || 'No file loaded' }}</span>
+
+    <div class="sv-ctrl-group">
+      <span class="sv-ctrl-label">MODE</span>
+      <select class="sv-select" [value]="currentMode" (change)="loadMode($any($event.target).value)">
+        <option *ngFor="let m of modeKeys" [value]="m">{{ getModeName(m) }}</option>
+      </select>
+    </div>
+
+    <button class="sv-btn" [class.active]="freqScale==='audiogram'" (click)="toggleFreqScale()">
+      {{ freqScale === 'linear' ? '\u223c Linear' : '\u25ce Audiogram' }}
+    </button>
+
+    <button class="sv-btn" (click)="saveSettings()">&#8615; Save Settings</button>
+    <button class="sv-btn" (click)="triggerSettingsInput()">&#8613; Load Settings</button>
+
+    <span class="sv-processing" *ngIf="isProcessing">&#8987; Processing&hellip;</span>
+  </header>
+
+  <!-- ══════════════════ BODY ══════════════════════ -->
+  <div class="sv-body">
+
+    <!-- ── Sidebar: Equalizer sliders ─────────────── -->
+    <aside class="sv-sidebar">
+
+      <div class="sv-sidebar-title">
+        EQUALIZER
+        <span class="sv-mode-badge">{{ getModeName(currentMode) }}</span>
+      </div>
+
+      <!-- Generic only: add-band form -->
+      <div class="sv-add-band" *ngIf="currentMode === 'generic'">
+        <div class="sv-add-band-title">+ Add Band</div>
+        <span class="sv-ctrl-label">Label</span>
+        <input class="sv-input" [(ngModel)]="newBandLabel" placeholder="Band name">
+        <span class="sv-ctrl-label">From (Hz)</span>
+        <input class="sv-input" type="number" [(ngModel)]="newBandFrom" min="0">
+        <span class="sv-ctrl-label">To (Hz)</span>
+        <input class="sv-input" type="number" [(ngModel)]="newBandTo" min="1">
+        <button class="sv-btn primary full" (click)="addGenericBand()">Add Band</button>
+      </div>
+
+      <!-- EQ Band Sliders -->
+      <div class="sv-sliders-list">
+        <div class="sv-slider-card" *ngFor="let band of bands; let i = index">
+          <div class="sv-slider-head">
+            <span class="sv-slider-label">{{ band.label }}</span>
+            <span class="sv-gain-val">{{ band.gain | number:'1.2-2' }}x</span>
+            <button class="sv-remove-btn" *ngIf="currentMode === 'generic'" (click)="removeBand(i)">x</button>
+          </div>
+          <div class="sv-ranges">
+            <span class="sv-range-chip" *ngFor="let r of band.ranges">{{ r.from }}-{{ r.to }} Hz</span>
+          </div>
+          <div class="sv-vslider-wrap">
+            <div class="sv-vslider-marks"><span>2x</span><span>1x</span><span>0x</span></div>
+            <input type="range" class="sv-vslider"
+                   min="0" max="2" step="0.01"
+                   [value]="band.gain"
+                   (input)="onGainChange(i, $any($event.target).value)">
+          </div>
+        </div>
+      </div>
+
+    </aside>
+
+    <!-- ── Main: Transport + Linked Viewers + FFT ── -->
+    <section class="sv-main">
+
+      <!-- Global Transport -->
+      <div class="sv-transport">
+        <div class="sv-transport-left">
+
+          <button class="sv-ctrl-btn primary" (click)="playAll()"
+                  [disabled]="globalPlaying && !globalPaused">
+            &#9654; Play
+          </button>
+
+          <button class="sv-ctrl-btn" (click)="pauseAll()"
+                  [disabled]="!globalPlaying || globalPaused">
+            &#9646;&#9646;
+          </button>
+
+          <button class="sv-ctrl-btn" (click)="stopAll()">&#9632;</button>
+
+          <div class="sv-sep"></div>
+
+          <button class="sv-ctrl-btn" (click)="zoomIn()" title="Zoom In">&#128269;+</button>
+          <button class="sv-ctrl-btn" (click)="zoomOut()" title="Zoom Out">&#128269;-</button>
+          <button class="sv-ctrl-btn" (click)="panLeft()" title="Pan Left">&#9664;</button>
+          <button class="sv-ctrl-btn" (click)="panRight()" title="Pan Right">&#9654;&#9654;</button>
+          <button class="sv-ctrl-btn" (click)="resetView()" title="Reset">&#8635;</button>
+
+          <div class="sv-sep"></div>
+
+          <button class="sv-ctrl-btn accent" (click)="playOutputAsSound()"
+                  [disabled]="!outputSamples.length">
+            &#128266; Output
+          </button>
+
+          <label class="sv-loop-label">
+            <input type="checkbox" [(ngModel)]="loop"> Loop
+          </label>
+        </div>
+
+        <div class="sv-transport-right">
+          <span class="sv-ctrl-label">SPEED</span>
+          <select class="sv-select sm" (change)="onSpeedChange($any($event.target).value)">
+            <option value="0.25">0.25x</option>
+            <option value="0.5">0.5x</option>
+            <option value="1" selected>1x</option>
+            <option value="1.5">1.5x</option>
+            <option value="2">2x</option>
+          </select>
+          <span class="sv-time">{{ formatTime(currentTime) }} / {{ formatTime(duration) }}</span>
+        </div>
+      </div>
+
+      <!-- Seekbar -->
+      <div class="sv-progress-bar" (click)="onProgressClick($event)">
+        <div class="sv-progress-fill" [style.width.%]="progressPct"></div>
+      </div>
+
+      <!-- Linked Viewers: INPUT left, OUTPUT right -->
+      <div class="sv-viewers-row">
+
+        <div class="sv-graph-card sv-viewer-card">
+          <div class="sv-graph-label" style="border-left-color:#1a73e8">
+            INPUT
+            <span class="sv-ch-status" *ngIf="globalPlaying && !globalPaused">&#9679; PLAYING</span>
+            <span class="sv-ch-status paused" *ngIf="globalPaused">&#9646;&#9646; PAUSED</span>
+          </div>
+          <div id="sv-input-graph"></div>
+          <div *ngIf="!inputSamples.length" class="sv-empty-state compact">
+            <div class="sv-empty-icon">&#128194;</div>
+            <div class="sv-empty-text">Load a signal file (JSON, MP3, WAV) to begin</div>
+            <div class="sv-empty-hint">Supports ECG Leads, signals arrays, flat samples</div>
+          </div>
+        </div>
+
+        <div class="sv-graph-card sv-viewer-card">
+          <div class="sv-graph-label" style="border-left-color:#34a853">
+            OUTPUT
+            <span class="sv-scale-badge linked-badge">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71" />
+                <path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71" />
+              </svg>
+              Linked
+            </span>
+          </div>
+          <div id="sv-output-graph"></div>
+          <div *ngIf="!outputSamples.length" class="sv-empty-state compact">
+            <div class="sv-empty-icon">&#9881;</div>
+            <div class="sv-empty-text">EQ output appears after loading a signal</div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- FFT -->
+      <div class="sv-graph-card fft-card">
+        <div class="sv-graph-label fft-label">
+          FREQUENCY DOMAIN
+          <span class="sv-scale-badge">
+            {{ freqScale === 'linear' ? 'Linear' : 'Audiogram  125 Hz - 8 kHz log' }}
+          </span>
+        </div>
+        <div id="sv-fft-graph"></div>
+      </div>
+
+    </section>
+  </div>
+</div>

@@ -1,0 +1,13 @@
+{
+  "ExpandedNodes": [
+    "",
+    "\\signallab",
+    "\\signallab\\signallab.client",
+    "\\signallab\\signallab.client\\public",
+    "\\signallab\\signallab.client\\src",
+    "\\signallab\\signallab.client\\src\\app",
+    "\\signallab\\signallab.client\\src\\app\\signal-viewer",
+    "\\signallab\\signallab.Server"
+  ],
+  "PreviewInSolutionExplorer": false
+}

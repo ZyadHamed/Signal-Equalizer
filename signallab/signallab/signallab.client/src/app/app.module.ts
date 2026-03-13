@@ -3,7 +3,9 @@ import { BrowserModule } from '@angular/platform-browser';
 import { FormsModule } from '@angular/forms';
 import { AppRoutingModule } from './app-routing.module';
 import { AppComponent } from './app.component';
-import { SignalViewerComponent } from './signal-viewer/signal-viewer.component';
+import { SignalViewerComponent } from './components/signal-viewer/signal-viewer.component';
+import { GenericModePanelComponent } from './components/generic-mode-panel/generic-mode-panel.component';
+import { EqSidebarComponent } from './components/eq-sidebar/eq-sidebar.component';
 
 @NgModule({
   declarations: [
@@ -13,7 +15,9 @@ import { SignalViewerComponent } from './signal-viewer/signal-viewer.component';
     BrowserModule,
     AppRoutingModule,
     FormsModule,
-    SignalViewerComponent, // standalone → imports لا declarations
+    SignalViewerComponent, 
+    GenericModePanelComponent,
+    EqSidebarComponent
   ],
   providers: [],
   bootstrap: [AppComponent]

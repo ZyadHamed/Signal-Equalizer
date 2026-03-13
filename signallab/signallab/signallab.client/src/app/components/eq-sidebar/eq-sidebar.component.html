@@ -1,0 +1,75 @@
+<!-- Hidden config file input -->
+<input #configInput type="file" accept=".json" hidden (change)="onConfigSelected($event)">
+
+<!-- ── Config toolbar ─────────────────────────────────────────────── -->
+<div class="eq-toolbar">
+  <button class="eq-btn primary" (click)="triggerConfigInput()">
+    ⤒ Load Config
+  </button>
+  <button class="eq-btn" (click)="downloadCurrentConfig()">
+    ⤓ Save Config
+  </button>
+  <button class="eq-btn" (click)="resetToDefault()">
+    ↺ Reset
+  </button>
+</div>
+
+<!-- ── Config error ───────────────────────────────────────────────── -->
+<div class="eq-config-error" *ngIf="configError">
+  ⚠ {{ configError }}
+</div>
+
+<!-- ── Add-band form (generic mode only) ──────────────────────────── -->
+<div class="eq-add-band" *ngIf="canAddBands">
+  <div class="eq-section-title">＋ Add Band</div>
+
+  <span class="eq-label">Label</span>
+  <input class="eq-input" [(ngModel)]="newBandLabel" placeholder="Band name">
+
+  <div class="eq-row">
+    <div class="eq-col">
+      <span class="eq-label">From (Hz)</span>
+      <input class="eq-input" type="number" [(ngModel)]="newBandFrom" min="0">
+    </div>
+    <div class="eq-col">
+      <span class="eq-label">To (Hz)</span>
+      <input class="eq-input" type="number" [(ngModel)]="newBandTo" min="1">
+    </div>
+  </div>
+
+  <span class="eq-label">Default Gain ({{ newBandGain | number:'1.2-2' }}×)</span>
+  <input type="range" class="eq-range"
+         min="0" max="2" step="0.01"
+         [(ngModel)]="newBandGain">
+
+  <button class="eq-btn primary full" (click)="addBand()">Add Band</button>
+</div>
+
+<!-- ── Band sliders ───────────────────────────────────────────────── -->
+<div class="eq-sliders-list">
+  <div class="eq-slider-card" *ngFor="let band of bands; let i = index">
+
+    <div class="eq-slider-head">
+      <span class="eq-slider-label">{{ band.label }}</span>
+      <span class="eq-gain-val">{{ band.gain | number:'1.2-2' }}×</span>
+      <button class="eq-remove-btn" *ngIf="canAddBands" (click)="removeBand(i)">✕</button>
+    </div>
+
+    <div class="eq-ranges">
+      <span class="eq-range-chip" *ngFor="let r of band.ranges">
+        {{ r.from }}–{{ r.to }} Hz
+      </span>
+    </div>
+
+    <div class="eq-slider-wrap">
+      <div class="eq-slider-marks">
+        <span>0×</span><span>1×</span><span>2×</span>
+      </div>
+      <input type="range" class="eq-slider"
+             min="0" max="2" step="0.01"
+             [value]="band.gain"
+             (input)="onGainChange(i, $any($event.target).value)">
+    </div>
+
+  </div>
+</div>

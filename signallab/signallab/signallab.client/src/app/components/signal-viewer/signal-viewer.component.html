@@ -1,0 +1,205 @@
+<!-- Hidden file input -->
+<input #fileInput type="file" accept=".mp3,.wav,.json,.mat" hidden (change)="onFileSelected($event)">
+
+<div class="sv-root">
+
+  <!-- ══ TOP BAR ══════════════════════════════════════════════════════ -->
+  <header class="sv-topbar">
+    <div class="sv-logo">
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#1a73e8" stroke-width="2.2">
+        <path d="M3 12h3l2-7 4 14 2-7h3"/>
+        <circle cx="19" cy="12" r="2" fill="#1a73e8"/>
+      </svg>
+      <span class="sv-logo-text">Signal <strong>Equalizer</strong></span>
+    </div>
+
+    <button class="sv-btn primary" (click)="triggerFileInput()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+        <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+        <polyline points="17 8 12 3 7 8"/>
+        <line x1="12" y1="3" x2="12" y2="15"/>
+      </svg>
+      Load Signal
+    </button>
+
+    <span class="sv-filename">{{ fileName || 'No file loaded' }}</span>
+
+    <!-- Mode selector -->
+    <div class="sv-ctrl-group">
+      <span class="sv-ctrl-label">MODE</span>
+      <select class="sv-select" [value]="currentMode"
+              (change)="switchMode($any($event.target).value)">
+        <option *ngFor="let m of modeKeys" [value]="m">{{ getModeName(m) }}</option>
+      </select>
+    </div>
+
+    <span class="sv-processing" *ngIf="isProcessing">⏳ Processing…</span>
+  </header>
+
+  <!-- ══ BODY ═════════════════════════════════════════════════════════ -->
+  <div class="sv-body">
+
+    <!-- ── Sidebar: active mode component ──────────────────────────── -->
+  <aside class="sv-sidebar">
+    <div class="sv-sidebar-title">
+      EQUALIZER
+      <span class="sv-mode-badge">{{ getModeName(currentMode) }}</span>
+    </div>
+
+    <app-eq-sidebar
+      [mode]="currentMode"
+      (bandsChange)="onBandsChange($event)">
+    </app-eq-sidebar>
+  </aside>
+    <!-- ── Main panel ───────────────────────────────────────────────── -->
+    <section class="sv-main">
+
+      <!-- ══ GLOBAL TRANSPORT ════════════════════════════════════════ -->
+      <div class="sv-transport">
+        <div class="sv-transport-left">
+
+          <button class="sv-ctrl-btn primary" (click)="playAll()"
+                  [disabled]="!inputSamples.length">
+            ▶ Play
+          </button>
+          <button class="sv-ctrl-btn primary" (click)="playInput()"
+                  [disabled]="!inputSamples.length">
+            ▶ In
+          </button>
+          <button class="sv-ctrl-btn accent" (click)="playOutput()"
+                  [disabled]="!outputSamples.length">
+            ▶ Out
+          </button>
+          <button class="sv-ctrl-btn" (click)="pauseGlobal()"
+                  [disabled]="!isPlaying || isPaused">
+            ⏸
+          </button>
+          <button class="sv-ctrl-btn" (click)="stopGlobal()">⏹</button>
+
+          <div class="sv-sep"></div>
+
+          <button class="sv-ctrl-btn" title="Zoom In"   (click)="zoomIn()">🔍+</button>
+          <button class="sv-ctrl-btn" title="Zoom Out"  (click)="zoomOut()">🔍−</button>
+          <button class="sv-ctrl-btn" title="Pan Left"  (click)="panLeft()">◀</button>
+          <button class="sv-ctrl-btn" title="Pan Right" (click)="panRight()">▶▶</button>
+          <button class="sv-ctrl-btn" title="Reset View"(click)="resetView()">↺</button>
+
+          <div class="sv-sep"></div>
+
+          <button class="sv-ctrl-btn accent" (click)="playOutputAsSound()"
+                  [disabled]="!outputSamples.length" title="Preview EQ output">
+            🔊 EQ Preview
+          </button>
+
+          <label class="sv-loop-label">
+            <input type="checkbox" [(ngModel)]="loop"> Loop
+          </label>
+        </div>
+
+        <div class="sv-transport-right">
+          <span class="sv-ctrl-label">SPEED</span>
+          <select class="sv-select sm" (change)="onSpeedChange($any($event.target).value)">
+            <option value="0.25">0.25×</option>
+            <option value="0.5">0.5×</option>
+            <option value="1" selected>1×</option>
+            <option value="1.5">1.5×</option>
+            <option value="2">2×</option>
+          </select>
+          <span class="sv-time">{{ formatTime(currentTime) }} / {{ formatTime(duration) }}</span>
+        </div>
+        <div class="sv-sep"></div>
+
+<div class="sv-xscale-group">
+  <span class="sv-ctrl-label">X SCALE</span>
+  <div class="sv-xscale-row">
+    <span class="sv-xscale-val">{{ xScaleLabel }}</span>
+    <input type="range" class="sv-xscale-slider"
+           min="0" max="7" step="1"
+           [value]="xScaleIndex"
+           (input)="onXScaleChange($any($event.target).value)">
+  </div>
+</div>
+      </div>
+
+      <!-- Global seek bar -->
+    <div class="sv-progress-bar"
+        (click)="onProgressClick($event)"
+        (mousedown)="onProgressMouseDown($event)">
+      <div class="sv-progress-fill" [style.width.%]="progressPct">
+        <div class="sv-progress-thumb"></div>
+      </div>
+    </div>
+      <!-- ══ INPUT CINE VIEWER ════════════════════════════════════════ -->
+      <div class="sv-graph-card">
+        <div class="sv-viewer-header input-header">
+          <div class="sv-viewer-label">
+            <span class="sv-viewer-dot input-dot"></span>
+            INPUT SIGNAL
+          </div>
+        </div>
+
+        <div *ngIf="!inputSamples.length" class="sv-empty-state">
+          <div class="sv-empty-icon">📂</div>
+          <div class="sv-empty-text">Load a signal file to begin</div>
+          <div class="sv-empty-hint">Supported: .wav · .mp3 · .json</div>
+        </div>
+
+        <app-cine-viewer
+          #inputCine
+          graphId="sv-input-graph"
+          label="Input"
+          color="#1a73e8"
+          [samples]="inputSamples"
+          [sampleRate]="sampleRate"
+          [playbackSpeed]="playbackSpeed"
+          [loop]="loop"
+          [externalSampleIdx]="currentSampleIdx"
+          [viewStart]="viewStart"
+          [viewWindow]="viewWindow"
+          [isAudioSignal]="isAudioSignal"
+          (sampleIdxChange)="onInputSampleIdxChange($event)">
+        </app-cine-viewer>
+      </div>
+
+      <!-- ══ OUTPUT CINE VIEWER ═══════════════════════════════════════ -->
+      <div class="sv-graph-card">
+        <div class="sv-viewer-header output-header">
+          <div class="sv-viewer-label">
+            <span class="sv-viewer-dot output-dot"></span>
+            OUTPUT SIGNAL (EQ)
+          </div>
+        </div>
+
+        <div *ngIf="!outputSamples.length" class="sv-empty-state small">
+          <div class="sv-empty-text">EQ output will appear here after loading a signal</div>
+        </div>
+
+        <app-cine-viewer
+          #outputCine
+          graphId="sv-output-graph"
+          label="Output"
+          color="#34a853"
+          [samples]="outputSamples"
+          [sampleRate]="sampleRate"
+          [playbackSpeed]="playbackSpeed"
+          [loop]="loop"
+          [externalSampleIdx]="currentSampleIdx"
+          [viewStart]="viewStart"
+          [viewWindow]="viewWindow"
+          [isAudioSignal]="isAudioSignal"
+          (sampleIdxChange)="onOutputSampleIdxChange($event)">
+        </app-cine-viewer>
+      </div>
+
+      <!-- ══ MODE PANEL (below cine viewers) ════════════════════════════ -->
+    @if (currentMode === 'generic') {
+      <app-generic-mode-panel
+        [inputSamples]="inputSamples"
+        [outputSamples]="outputSamples"
+        [sampleRate]="sampleRate"
+        [bands]="activeBands">
+      </app-generic-mode-panel>
+    }
+    </section>
+  </div>
+</div>

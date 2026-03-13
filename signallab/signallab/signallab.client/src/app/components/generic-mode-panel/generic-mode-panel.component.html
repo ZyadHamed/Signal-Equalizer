@@ -1,0 +1,46 @@
+<div class="gmp-root">
+
+  <!-- ── FFT ─────────────────────────────────────────────────────── -->
+  <div class="gmp-card">
+    <div class="gmp-card-header">
+      <div class="gmp-card-title">
+        <span class="gmp-dot fft-dot"></span>
+        FREQUENCY DOMAIN
+      </div>
+      <button class="gmp-btn"
+              [class.active]="freqScale === 'audiogram'"
+              (click)="toggleFreqScale()">
+        {{ freqScale === 'linear' ? '〜 Linear' : '◎ Audiogram Scale' }}
+      </button>
+    </div>
+    <div *ngIf="!inputSamples?.length" class="gmp-placeholder-msg">
+      Load a signal to see the frequency domain
+    </div>
+    <div [id]="fftId"></div>
+  </div>
+
+  <!-- ── Audiogram ────────────────────────────────────────────────── -->
+  <div class="gmp-card">
+    <div class="gmp-card-header">
+      <div class="gmp-card-title">
+        <span class="gmp-dot audiogram-dot"></span>
+        AUDIOGRAM
+        <span class="gmp-badge">Placeholder</span>
+      </div>
+    </div>
+    <div [id]="audiogramId"></div>
+  </div>
+
+  <!-- ── Spectrogram ──────────────────────────────────────────────── -->
+  <div class="gmp-card">
+    <div class="gmp-card-header">
+      <div class="gmp-card-title">
+        <span class="gmp-dot spectrogram-dot"></span>
+        SPECTROGRAM
+        <span class="gmp-badge">Placeholder</span>
+      </div>
+    </div>
+    <div [id]="spectrogramId"></div>
+  </div>
+
+</div>

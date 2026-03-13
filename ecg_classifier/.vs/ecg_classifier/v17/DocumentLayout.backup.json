@@ -1,0 +1,45 @@
+{
+  "Version": 1,
+  "WorkspaceRootPath": "F:\\abdoo\\second year\\second term\\DSP\\TASKS\\task2v2\\ecg_classifier\\",
+  "Documents": [
+    {
+      "AbsoluteMoniker": "D:0:0:{AAD371BB-DDA9-4D97-820E-B6CEE03470C9}|ecg_classifier.pyproj|F:\\abdoo\\second year\\second term\\DSP\\TASKS\\task2v2\\ecg_classifier\\ecg_classifier.py||{8B382828-6202-11D1-8870-0000F87579D2}",
+      "RelativeMoniker": "D:0:0:{AAD371BB-DDA9-4D97-820E-B6CEE03470C9}|ecg_classifier.pyproj|solutionrelative:ecg_classifier.py||{8B382828-6202-11D1-8870-0000F87579D2}"
+    }
+  ],
+  "DocumentGroupContainers": [
+    {
+      "Orientation": 0,
+      "VerticalTabListWidth": 256,
+      "DocumentGroups": [
+        {
+          "DockedWidth": 200,
+          "SelectedChildIndex": 2,
+          "Children": [
+            {
+              "$type": "Bookmark",
+              "Name": "ST:0:0:{1c4feeaa-4718-4aa9-859d-94ce25d182ba}"
+            },
+            {
+              "$type": "Bookmark",
+              "Name": "ST:1:0:{d212f56b-c48a-434c-a121-1c5d80b59b9f}"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 0,
+              "Title": "ecg_classifier.py",
+              "DocumentMoniker": "F:\\abdoo\\second year\\second term\\DSP\\TASKS\\task2v2\\ecg_classifier\\ecg_classifier.py",
+              "RelativeDocumentMoniker": "ecg_classifier.py",
+              "ToolTip": "F:\\abdoo\\second year\\second term\\DSP\\TASKS\\task2v2\\ecg_classifier\\ecg_classifier.py",
+              "RelativeToolTip": "ecg_classifier.py",
+              "ViewState": "AgIAAI8BAAAAAAAAAAAgwJYBAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.002457|",
+              "WhenOpened": "2026-03-12T14:47:39.595Z",
+              "EditorCaption": ""
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

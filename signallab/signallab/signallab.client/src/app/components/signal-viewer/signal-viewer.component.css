@@ -146,7 +146,6 @@
   border-radius: 4px;
   cursor: pointer;
   flex-shrink: 0;
-  /* Extra vertical hit area so the thumb is easy to grab */
   padding: 6px 0;
   margin: -6px 0;
   box-sizing: content-box;
@@ -159,7 +158,6 @@
   background: linear-gradient(90deg, #1a73e8, #34a853);
   pointer-events: none;
   transition: width 0.05s linear;
-  /* Clip the thumb so it doesn't overflow the card */
   overflow: visible;
 }
 
@@ -222,6 +220,52 @@
 }
 .input-dot  { background: #1a73e8; box-shadow: 0 0 5px rgba(26,115,232,.5); }
 .output-dot { background: #34a853; box-shadow: 0 0 5px rgba(52,168,83,.5); }
+
+/* ══ FFT RANGE BADGE (shown in each card header) ════════════════════ */
+.sv-fft-range-badge {
+  margin-left: auto;
+  font-size: 11px;
+  font-weight: 700;
+  font-family: 'IBM Plex Mono', monospace;
+  color: #1a73e8;
+  background: #e8f0fe;
+  border-radius: 8px;
+  padding: 2px 8px;
+  white-space: nowrap;
+}
+
+/* ══ SHARED FFT CONTROLS ROW ════════════════════════════════════════ */
+.sv-fft-shared-controls {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 8px 14px;
+  background: #ffffff;
+  border: 1px solid #d8e2ee;
+  border-radius: 10px;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+
+/* Group: label + value + slider */
+.sv-fft-ctrl-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: opacity 0.2s;
+}
+
+/* Dim the pan control when there's no zoom */
+.sv-fft-ctrl-group.fft-ctrl-disabled {
+  opacity: 0.35;
+  pointer-events: none;
+}
+
+/* Wider slider for FFT controls */
+.sv-xscale-slider.fft-slider {
+  width: 140px;
+}
 
 /* ══ EMPTY STATES ═══════════════════════════════════════════════════ */
 .sv-empty-state {
@@ -391,3 +435,101 @@
 
 .severity-warning { border-left: 3px solid #f59e0b; }
 .severity-danger  { border-left: 3px solid #ef4444; }
+
+/* ══ FFT CARDS ══════════════════════════════════════════════════════ */
+.sv-fft-card {
+  flex-shrink: 0;
+}
+
+.sv-fft-plot {
+  width: 100%;
+}
+
+.sv-fft-scale-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid #c8d5e2;
+  background: #fff;
+  color: #3a4a5c;
+  border-radius: 7px;
+  padding: 5px 12px;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.14s;
+  font-family: inherit;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.sv-fft-scale-btn:hover {
+  border-color: #1a73e8;
+  color: #1a73e8;
+  background: #f0f7ff;
+}
+
+/* ══ X SCALE (waveform) ═════════════════════════════════════════════ */
+.sv-xscale-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 120px;
+}
+
+.sv-xscale-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sv-xscale-val {
+  font-size: 11px;
+  font-weight: 700;
+  color: #1a73e8;
+  font-family: 'IBM Plex Mono', monospace;
+  min-width: 54px;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.sv-xscale-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100px;
+  height: 4px;
+  border-radius: 2px;
+  background: #e2e8f0;
+  cursor: pointer;
+  accent-color: #1a73e8;
+}
+
+.sv-xscale-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px; height: 14px;
+  border-radius: 50%;
+  background: #1a73e8;
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(26,115,232,0.4);
+}
+
+.sv-xscale-slider::-moz-range-thumb {
+  width: 14px; height: 14px;
+  border-radius: 50%;
+  background: #1a73e8;
+  cursor: pointer;
+  border: none;
+  box-shadow: 0 1px 3px rgba(26,115,232,0.4);
+}
+
+.sv-xscale-slider:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Legacy — kept for any leftover uses */
+.sv-fft-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}

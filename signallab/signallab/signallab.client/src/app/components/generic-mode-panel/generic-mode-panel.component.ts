@@ -1,326 +1,255 @@
 import {
-  Component, Input, OnChanges, OnDestroy,
-  SimpleChanges, ChangeDetectorRef
+  Component, Input, OnChanges, SimpleChanges,
+  ChangeDetectionStrategy, ChangeDetectorRef, NgZone,
+  OnDestroy, ElementRef, ViewChild, AfterViewInit
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
 
 declare const Plotly: any;
 
-const FFT_ID         = 'gm-fft-graph';
-const AUDIOGRAM_ID   = 'gm-audiogram-graph';
-const SPECTROGRAM_ID = 'gm-spectrogram-graph';
-
-const BAND_COLORS = [
-  '#e74c3c','#f39c12','#9b59b6','#1abc9c',
-  '#e67e22','#3498db','#c0392b','#16a085',
-];
-
-export type FreqScale = 'linear' | 'audiogram';
+const INPUT_SPEC_ID  = 'gmp-input-spectrogram';
+const OUTPUT_SPEC_ID = 'gmp-output-spectrogram';
 
 @Component({
   selector: 'app-generic-mode-panel',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, FormsModule],
   templateUrl: './generic-mode-panel.component.html',
   styleUrls: ['./generic-mode-panel.component.css'],
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class GenericModePanelComponent implements OnChanges, OnDestroy {
+export class GenericModePanelComponent implements OnChanges, OnDestroy, AfterViewInit {
 
-  @Input() inputSamples:  any = new Float32Array(0);
-  @Input() outputSamples: any = new Float32Array(0);
+  /** Raw input samples (Float32Array or number[]). */
+  @Input() inputSamples:  Float32Array | number[] = new Float32Array(0);
+  /** Raw output samples after EQ applied. */
+  @Input() outputSamples: Float32Array | number[] = new Float32Array(0);
+  /** Sampling rate in Hz. */
   @Input() sampleRate = 44100;
-  @Input() bands: any[] = [];
+  /**
+   * Increment this counter from the parent whenever an equalisation has been
+   * applied — the component watches it and redraws only the output spectrogram.
+   */
+  @Input() eqVersion = 0;
 
-  freqScale: FreqScale = 'linear';
+  // ── Spectrogram parameters ─────────────────────────────────────────
+  windowSize = 256;
+  overlap    = 128;
 
-  readonly fftId         = FFT_ID;
-  readonly audiogramId   = AUDIOGRAM_ID;
-  readonly spectrogramId = SPECTROGRAM_ID;
+  // ── Internal state ─────────────────────────────────────────────────
+  isLoadingInput  = false;
+  isLoadingOutput = false;
+  errorMsg        = '';
+
+  private inputFetched  = false;   // once per signal load
+  private prevInputLen  = 0;
+  private prevEqVersion = -1;
+
+  // Cached raw spectrogram data (needed to redraw on param change)
+  private inputSpecData:  { frequencies: number[]; times: number[]; spectrogram_array: number[][] } | null = null;
+  private outputSpecData: { frequencies: number[]; times: number[]; spectrogram_array: number[][] } | null = null;
 
   constructor(private cdr: ChangeDetectorRef) {}
 
+  ngAfterViewInit(): void {}
+
   ngOnChanges(changes: SimpleChanges): void {
-    if (
-      changes['inputSamples'] ||
-      changes['outputSamples'] ||
-      changes['sampleRate'] ||
-      changes['bands']
-    ) {
-      setTimeout(() => {
-        this.drawFft();
-        this.drawAudiogramPlaceholder();
-        this.drawSpectrogramPlaceholder();
-      }, 0);
+    const inputChanged = changes['inputSamples'] &&
+      (this.inputSamples as any).length !== this.prevInputLen;
+
+    const eqChanged = changes['eqVersion'] &&
+      this.eqVersion !== this.prevEqVersion;
+
+    if (inputChanged) {
+      this.prevInputLen  = (this.inputSamples as any).length;
+      this.inputFetched  = false;
+      this.inputSpecData = null;
+      this.outputSpecData = null;
+      if ((this.inputSamples as any).length) {
+        this.fetchInputSpectrogram();
+        // Output is freshly computed alongside input on first load
+        this.fetchOutputSpectrogram();
+        this.prevEqVersion = this.eqVersion;
+      }
+      return;
+    }
+
+    if (eqChanged && this.eqVersion !== this.prevEqVersion) {
+      this.prevEqVersion = this.eqVersion;
+      if ((this.outputSamples as any).length) {
+        this.fetchOutputSpectrogram();
+      }
     }
   }
 
   ngOnDestroy(): void {
-    [FFT_ID, AUDIOGRAM_ID, SPECTROGRAM_ID].forEach(id => {
-      const el = document.getElementById(id);
-      if (el) Plotly.purge(el);
-    });
+    const el1 = document.getElementById(INPUT_SPEC_ID);
+    const el2 = document.getElementById(OUTPUT_SPEC_ID);
+    if (el1) Plotly.purge(el1);
+    if (el2) Plotly.purge(el2);
   }
 
-  toggleFreqScale(): void {
-    this.freqScale = this.freqScale === 'linear' ? 'audiogram' : 'linear';
-    this.drawFft();
+  // ── Param change handler ───────────────────────────────────────────
+
+  onParamsChange(): void {
+    // Parameters changed — cached data is stale, always re-fetch
+    if ((this.inputSamples as any).length) {
+      this.inputSpecData = null;
+      this.fetchInputSpectrogram();
+    }
+    if ((this.outputSamples as any).length) {
+      this.outputSpecData = null;
+      this.fetchOutputSpectrogram();
+    }
   }
 
-  // ── FFT ────────────────────────────────────────────────────────────
+  // ── Fetch helpers ──────────────────────────────────────────────────
 
-  drawFft(): void {
-    const el = document.getElementById(FFT_ID);
-    if (!el || !this.inputSamples?.length) {
-      if (el) Plotly.purge(el);
-      return;
+  private async fetchInputSpectrogram(): Promise<void> {
+    if (!(this.inputSamples as any).length) return;
+    this.isLoadingInput = true;
+    this.errorMsg = '';
+    this.cdr.detectChanges();
+
+    try {
+      const data = await this.postSpectrogram(this.inputSamples);
+      this.inputSpecData = data;
+      this.inputFetched  = true;
+      setTimeout(() => this.drawSpectrogram(INPUT_SPEC_ID, data, 'Input', '#1a73e8'), 0);
+    } catch (e: any) {
+      this.errorMsg = `Input spectrogram error: ${e?.message ?? e}`;
     }
 
-    const FFT_N   = 4096;
-    const half    = FFT_N / 2;
-    const nyquist = this.sampleRate / 2;
-    const isAudiogram = this.freqScale === 'audiogram';
+    this.isLoadingInput = false;
+    this.cdr.detectChanges();
+  }
 
-    const inMag  = this.computeFftDb(this.inputSamples, FFT_N);
-    const outMag = this.outputSamples?.length
-      ? this.computeFftDb(this.outputSamples, FFT_N)
-      : null;
+  private async fetchOutputSpectrogram(): Promise<void> {
+    if (!(this.outputSamples as any).length) return;
+    this.isLoadingOutput = true;
+    this.errorMsg = '';
+    this.cdr.detectChanges();
 
-    const freqToX = (f: number) =>
-      isAudiogram ? Math.log10(Math.max(f, 1)) : f;
+    try {
+      const data = await this.postSpectrogram(this.outputSamples);
+      this.outputSpecData = data;
+      setTimeout(() => this.drawSpectrogram(OUTPUT_SPEC_ID, data, 'Output (EQ)', '#34a853'), 0);
+    } catch (e: any) {
+      this.errorMsg = `Output spectrogram error: ${e?.message ?? e}`;
+    }
 
-    const buildXY = (mag: number[]) => {
-      const x: number[] = [], y: number[] = [];
-      for (let k = 1; k < half; k++) {
-        const freq = (k / half) * nyquist;
-        if (isAudiogram && (freq < 100 || freq > 10000)) continue;
-        x.push(freqToX(freq));
-        y.push(mag[k]);
-      }
-      return { x, y };
+    this.isLoadingOutput = false;
+    this.cdr.detectChanges();
+  }
+
+  private async postSpectrogram(
+    samples: Float32Array | number[],
+  ): Promise<{ frequencies: number[]; times: number[]; spectrogram_array: number[][] }> {
+    const response = await fetch('http://127.0.0.1:8000/computespectrogram', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        signal:       Array.from(samples),
+        sampling_rate: this.sampleRate,
+        window_size:  this.windowSize,
+        overlap:      this.overlap,
+      }),
+    });
+    if (!response.ok) {
+      const detail = await response.text();
+      throw new Error(`${response.status} ${response.statusText} — ${detail}`);
+    }
+    return response.json();
+  }
+
+  // ── Drawing ────────────────────────────────────────────────────────
+
+  private drawSpectrogram(
+    graphId: string,
+    data:    { frequencies: number[]; times: number[]; spectrogram_array: number[][] },
+    title:   string,
+    color:   string,
+  ): void {
+    const el = document.getElementById(graphId);
+    if (!el) return;
+
+    const { frequencies, times, spectrogram_array } = data;
+
+    // spectrogram_array shape: [freq_bins][time_bins]  (rows = frequencies)
+    const trace: any = {
+      type:        'heatmap',
+      x:           times,
+      y:           frequencies,
+      z:           spectrogram_array,
+      colorscale:  this.buildColorscale(color),
+      zsmooth:     'best',
+      showscale:   true,
+      colorbar: {
+        title:      'dB',
+        titleside:  'right',
+        thickness:  14,
+        len:        0.85,
+        tickfont:   { size: 10, color: '#5a7a9a' },
+        titlefont:  { size: 11, color: '#5a7a9a' },
+      },
+      hovertemplate: 'Time: %{x:.3f}s<br>Freq: %{y:.0f}Hz<br>Mag: %{z:.4e}<extra></extra>',
     };
 
-    const { x: xIn,  y: yIn  } = buildXY(inMag);
-    const { x: xOut, y: yOut } = outMag
-      ? buildXY(outMag)
-      : { x: [], y: [] };
-
-    const traces: any[] = [
-      {
-        x: xIn, y: yIn, type: 'scatter', mode: 'lines', name: 'Input',
-        line: { color: '#1a73e8', width: 1.5 },
-        fill: 'tozeroy', fillcolor: 'rgba(26,115,232,0.07)',
+    const layout: any = {
+      uirevision: graphId,
+      title: { text: `${title} — Spectrogram`, font: { size: 13, color: '#1a2b4a', family: 'JetBrains Mono, monospace' } },
+      height: 280,
+      margin: { l: 68, r: 70, t: 46, b: 58 },
+      xaxis: {
+        title: { text: 'Time (s)', font: { size: 11 } },
+        gridcolor: '#d0dce8',
+        zeroline: false,
+        tickfont: { size: 10, color: '#5a7a9a' },
       },
-    ];
+      yaxis: {
+        title: { text: 'Frequency (Hz)', font: { size: 11 } },
+        gridcolor: '#d0dce8',
+        zeroline: false,
+        tickfont: { size: 10, color: '#5a7a9a' },
+      },
+      plot_bgcolor:  '#f0f5fa',
+      paper_bgcolor: '#f8fafc',
+    };
 
-    if (outMag) {
-      traces.push({
-        x: xOut, y: yOut, type: 'scatter', mode: 'lines', name: 'Output (EQ)',
-        line: { color: '#34a853', width: 1.5 },
-        fill: 'tozeroy', fillcolor: 'rgba(52,168,83,0.07)',
-      });
-    }
-
-    this.bands.forEach((band: any, i: number) => {
-      const c = BAND_COLORS[i % BAND_COLORS.length];
-      band.ranges.forEach((r: any) => {
-        traces.push({
-          x: [freqToX(r.from), freqToX(r.from), freqToX(r.to), freqToX(r.to), freqToX(r.from)],
-          y: [-120, 10, 10, -120, -120],
-          type: 'scatter', mode: 'lines', fill: 'toself',
-          fillcolor: c + '28', line: { color: c + '66', width: 1 },
-          name: band.label, showlegend: false, hoverinfo: 'name',
-        });
-      });
+    Plotly.react(graphId, [trace], layout, {
+      responsive:   true,
+      displayModeBar: true,
+      displaylogo:  false,
+      modeBarButtonsToRemove: ['toImage', 'sendDataToCloud'],
     });
-
-    const audiogramTickVals = [125, 250, 500, 1000, 2000, 4000, 8000].map(f => Math.log10(f));
-    const audiogramTickText = ['125', '250', '500', '1k', '2k', '4k', '8k'];
-
-    Plotly.react(
-      FFT_ID,
-      traces,
-      {
-        uirevision: `fft-${this.freqScale}`,
-        title: {
-          text: isAudiogram
-            ? 'Frequency Domain — Audiogram Scale (100 Hz – 10 kHz)'
-            : 'Frequency Domain — Linear Scale',
-          font: { size: 13, color: '#1a2b4a' },
-        },
-        height: 280,
-        margin: { l: 60, r: 20, t: 44, b: 55 },
-        xaxis: isAudiogram
-          ? {
-              title: 'Frequency (Hz)', gridcolor: '#e8edf3',
-              range: [Math.log10(100), Math.log10(10000)],
-              tickmode: 'array',
-              tickvals: audiogramTickVals,
-              ticktext: audiogramTickText,
-            }
-          : { title: 'Frequency (Hz)', range: [0, nyquist], gridcolor: '#e8edf3' },
-        yaxis: {
-          title: 'Magnitude (dB)', range: [-100, 10],
-          gridcolor: '#f0f4f8', zeroline: true, zerolinecolor: '#c8d5e2',
-        },
-        showlegend: true,
-        legend: { orientation: 'h', y: -0.22 },
-        plot_bgcolor:  '#ffffff',
-        paper_bgcolor: '#f8fafc',
-      },
-      {
-        responsive: true, displayModeBar: true, displaylogo: false,
-        modeBarButtonsToRemove: ['toImage', 'sendDataToCloud'],
-      }
-    );
   }
 
-  // ── Audiogram placeholder ──────────────────────────────────────────
-
-  drawAudiogramPlaceholder(): void {
-    const el = document.getElementById(AUDIOGRAM_ID);
-    if (!el) return;
-
-    const freqs     = [125, 250, 500, 1000, 2000, 4000, 8000];
-    const leftEar   = [-10, -5,  0,   5,   20,   35,   45];
-    const rightEar  = [-5,  0,   5,   10,  25,   40,   50];
-
-    Plotly.react(
-      AUDIOGRAM_ID,
-      [
-        {
-          x: freqs, y: leftEar, type: 'scatter', mode: 'lines+markers',
-          name: 'Left Ear (placeholder)',
-          line: { color: '#1a73e8', width: 2, dash: 'dot' },
-          marker: { symbol: 'x', size: 10, color: '#1a73e8' },
-        },
-        {
-          x: freqs, y: rightEar, type: 'scatter', mode: 'lines+markers',
-          name: 'Right Ear (placeholder)',
-          line: { color: '#e74c3c', width: 2, dash: 'dot' },
-          marker: { symbol: 'circle-open', size: 10, color: '#e74c3c' },
-        },
-      ],
-      {
-        title: {
-          text: 'Audiogram — Hearing Threshold (placeholder)',
-          font: { size: 13, color: '#1a2b4a' },
-        },
-        height: 280,
-        margin: { l: 60, r: 20, t: 44, b: 55 },
-        xaxis: {
-          title: 'Frequency (Hz)',
-          type: 'log',
-          tickmode: 'array',
-          tickvals: freqs,
-          ticktext: ['125', '250', '500', '1k', '2k', '4k', '8k'],
-          gridcolor: '#e8edf3',
-        },
-        yaxis: {
-          title: 'Hearing Level (dB HL)',
-          range: [80, -20],   // inverted — audiogram convention
-          gridcolor: '#f0f4f8',
-          zeroline: true, zerolinecolor: '#c8d5e2',
-        },
-        showlegend: true,
-        legend: { orientation: 'h', y: -0.22 },
-        plot_bgcolor:  '#ffffff',
-        paper_bgcolor: '#f8fafc',
-        annotations: [{
-          text: 'Placeholder — real audiogram data not yet computed',
-          xref: 'paper', yref: 'paper',
-          x: 0.5, y: 0.5,
-          showarrow: false,
-          font: { size: 11, color: '#94a3b8' },
-          bgcolor: 'rgba(255,255,255,0.7)',
-        }],
-      },
-      { responsive: true, displayModeBar: false }
-    );
+  /** Build a two-stop colorscale that fades from near-black to the accent color. */
+  private buildColorscale(hex: string): [number, string][] {
+    return [
+      [0,   '#0a0f1a'],
+      [0.3, hex + 'aa'],
+      [0.7, hex],
+      [1,   '#ffffff'],
+    ];
   }
 
-  // ── Spectrogram placeholder ────────────────────────────────────────
+  // ── Validation ─────────────────────────────────────────────────────
 
-  drawSpectrogramPlaceholder(): void {
-    const el = document.getElementById(SPECTROGRAM_ID);
-    if (!el) return;
+  get overlapMax(): number { return Math.max(0, this.windowSize - 1); }
 
-    // Generate fake noise-like spectrogram data
-    const timeSteps = 60;
-    const freqBins  = 40;
-    const z: number[][] = [];
-
-    for (let f = 0; f < freqBins; f++) {
-      const row: number[] = [];
-      for (let t = 0; t < timeSteps; t++) {
-        // Fake data: low freqs louder, decays with frequency
-        const base  = Math.max(0, 80 - f * 1.8);
-        const noise = (Math.random() - 0.5) * 15;
-        row.push(base + noise);
-      }
-      z.push(row);
+  onWindowSizeChange(val: string): void {
+    this.windowSize = parseInt(val, 10);
+    if (this.overlap >= this.windowSize) {
+      this.overlap = this.windowSize - 1;
     }
-
-    const nyquist   = this.sampleRate / 2;
-    const freqLabels = Array.from({ length: freqBins }, (_, i) =>
-      Math.round((i / freqBins) * nyquist)
-    );
-    const timeLabels = Array.from({ length: timeSteps }, (_, i) =>
-      parseFloat((i * 0.1).toFixed(1))
-    );
-
-    Plotly.react(
-      SPECTROGRAM_ID,
-      [
-        {
-          z,
-          x: timeLabels,
-          y: freqLabels,
-          type: 'heatmap',
-          colorscale: 'Viridis',
-          colorbar: { title: 'dB', thickness: 14 },
-          zmin: 0,
-          zmax: 80,
-        },
-      ],
-      {
-        title: {
-          text: 'Spectrogram (placeholder — not computed from signal)',
-          font: { size: 13, color: '#1a2b4a' },
-        },
-        height: 280,
-        margin: { l: 60, r: 70, t: 44, b: 55 },
-        xaxis: { title: 'Time (s)', gridcolor: '#e8edf3' },
-        yaxis: { title: 'Frequency (Hz)', gridcolor: '#f0f4f8' },
-        plot_bgcolor:  '#ffffff',
-        paper_bgcolor: '#f8fafc',
-        annotations: [{
-          text: 'Placeholder — real spectrogram not yet computed',
-          xref: 'paper', yref: 'paper',
-          x: 0.5, y: 0.5,
-          showarrow: false,
-          font: { size: 11, color: '#ffffff' },
-        }],
-      },
-      { responsive: true, displayModeBar: false }
-    );
+    this.onParamsChange();
   }
 
-  // ── FFT helper ─────────────────────────────────────────────────────
-
-  private computeFftDb(samples: Float32Array, N: number): number[] {
-    const half = N / 2;
-    const len  = Math.min(N, samples.length);
-    const mag  = new Array(half).fill(-100);
-    for (let k = 0; k < half; k++) {
-      let re = 0, im = 0;
-      for (let n = 0; n < len; n++) {
-        const w     = 0.5 * (1 - Math.cos((2 * Math.PI * n) / (len - 1)));
-        const angle = (2 * Math.PI * k * n) / N;
-        re += samples[n] * w * Math.cos(angle);
-        im -= samples[n] * w * Math.sin(angle);
-      }
-      mag[k] = 20 * Math.log10(Math.sqrt(re * re + im * im) / len + 1e-10);
-    }
-    return mag;
+  onOverlapChange(val: string): void {
+    this.overlap = parseInt(val, 10);
+    this.onParamsChange();
+    console.log("Nice!!")
   }
 }

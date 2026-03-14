@@ -1,4 +1,3 @@
-<!-- Hidden file input -->
 <input #fileInput type="file" accept=".mp3,.wav,.json,.mat" hidden (change)="onFileSelected($event)">
 
 <div class="sv-root">
@@ -24,7 +23,6 @@
 
     <span class="sv-filename">{{ fileName || 'No file loaded' }}</span>
 
-    <!-- Mode selector -->
     <div class="sv-ctrl-group">
       <span class="sv-ctrl-label">MODE</span>
       <select class="sv-select" [value]="currentMode"
@@ -39,63 +37,40 @@
   <!-- ══ BODY ═════════════════════════════════════════════════════════ -->
   <div class="sv-body">
 
-    <!-- ── Sidebar: active mode component ──────────────────────────── -->
-  <aside class="sv-sidebar">
-    <div class="sv-sidebar-title">
-      EQUALIZER
-      <span class="sv-mode-badge">{{ getModeName(currentMode) }}</span>
-    </div>
+    <!-- ── Sidebar ──────────────────────────────────────────────────── -->
+    <aside class="sv-sidebar">
+      <div class="sv-sidebar-title">
+        EQUALIZER
+        <span class="sv-mode-badge">{{ getModeName(currentMode) }}</span>
+      </div>
+      <app-eq-sidebar
+        [mode]="currentMode"
+        (bandsChange)="onBandsChange($event)"
+        (waveletChange)="onWaveletChange($event)">   <!-- add this line -->
+      </app-eq-sidebar>
+    </aside>
 
-    <app-eq-sidebar
-      [mode]="currentMode"
-      (bandsChange)="onBandsChange($event)">
-    </app-eq-sidebar>
-  </aside>
     <!-- ── Main panel ───────────────────────────────────────────────── -->
     <section class="sv-main">
 
-      <!-- ══ GLOBAL TRANSPORT ════════════════════════════════════════ -->
+      <!-- Transport -->
       <div class="sv-transport">
         <div class="sv-transport-left">
-
-          <button class="sv-ctrl-btn primary" (click)="playAll()"
-                  [disabled]="!inputSamples.length">
-            ▶ Play
-          </button>
-          <button class="sv-ctrl-btn primary" (click)="playInput()"
-                  [disabled]="!inputSamples.length">
-            ▶ In
-          </button>
-          <button class="sv-ctrl-btn accent" (click)="playOutput()"
-                  [disabled]="!outputSamples.length">
-            ▶ Out
-          </button>
-          <button class="sv-ctrl-btn" (click)="pauseGlobal()"
-                  [disabled]="!isPlaying || isPaused">
-            ⏸
-          </button>
+          <button class="sv-ctrl-btn primary" (click)="playAll()"    [disabled]="!inputSamples.length">▶ Play</button>
+          <button class="sv-ctrl-btn primary" (click)="playInput()"  [disabled]="!inputSamples.length">▶ In</button>
+          <button class="sv-ctrl-btn accent"  (click)="playOutput()" [disabled]="!outputSamples.length">▶ Out</button>
+          <button class="sv-ctrl-btn" (click)="pauseGlobal()" [disabled]="!isPlaying || isPaused">⏸</button>
           <button class="sv-ctrl-btn" (click)="stopGlobal()">⏹</button>
-
           <div class="sv-sep"></div>
-
-          <button class="sv-ctrl-btn" title="Zoom In"   (click)="zoomIn()">🔍+</button>
-          <button class="sv-ctrl-btn" title="Zoom Out"  (click)="zoomOut()">🔍−</button>
-          <button class="sv-ctrl-btn" title="Pan Left"  (click)="panLeft()">◀</button>
-          <button class="sv-ctrl-btn" title="Pan Right" (click)="panRight()">▶▶</button>
-          <button class="sv-ctrl-btn" title="Reset View"(click)="resetView()">↺</button>
-
+          <button class="sv-ctrl-btn" (click)="zoomIn()">🔍+</button>
+          <button class="sv-ctrl-btn" (click)="zoomOut()">🔍−</button>
+          <button class="sv-ctrl-btn" (click)="panLeft()">◀</button>
+          <button class="sv-ctrl-btn" (click)="panRight()">▶▶</button>
+          <button class="sv-ctrl-btn" (click)="resetView()">↺</button>
           <div class="sv-sep"></div>
-
-          <button class="sv-ctrl-btn accent" (click)="playOutputAsSound()"
-                  [disabled]="!outputSamples.length" title="Preview EQ output">
-            🔊 EQ Preview
-          </button>
-
-          <label class="sv-loop-label">
-            <input type="checkbox" [(ngModel)]="loop"> Loop
-          </label>
+          <button class="sv-ctrl-btn accent" (click)="playOutputAsSound()" [disabled]="!outputSamples.length">🔊 EQ Preview</button>
+          <label class="sv-loop-label"><input type="checkbox" [(ngModel)]="loop"> Loop</label>
         </div>
-
         <div class="sv-transport-right">
           <span class="sv-ctrl-label">SPEED</span>
           <select class="sv-select sm" (change)="onSpeedChange($any($event.target).value)">
@@ -106,30 +81,26 @@
             <option value="2">2×</option>
           </select>
           <span class="sv-time">{{ formatTime(currentTime) }} / {{ formatTime(duration) }}</span>
+          <div class="sv-sep"></div>
+          <div class="sv-xscale-group">
+            <span class="sv-ctrl-label">X SCALE</span>
+            <div class="sv-xscale-row">
+              <span class="sv-xscale-val">{{ xScaleLabel }}</span>
+              <input type="range" class="sv-xscale-slider" min="0" max="7" step="1"
+                     [value]="xScaleIndex" (input)="onXScaleChange($any($event.target).value)">
+            </div>
+          </div>
         </div>
-        <div class="sv-sep"></div>
-
-<div class="sv-xscale-group">
-  <span class="sv-ctrl-label">X SCALE</span>
-  <div class="sv-xscale-row">
-    <span class="sv-xscale-val">{{ xScaleLabel }}</span>
-    <input type="range" class="sv-xscale-slider"
-           min="0" max="7" step="1"
-           [value]="xScaleIndex"
-           (input)="onXScaleChange($any($event.target).value)">
-  </div>
-</div>
       </div>
 
-      <!-- Global seek bar -->
-    <div class="sv-progress-bar"
-        (click)="onProgressClick($event)"
-        (mousedown)="onProgressMouseDown($event)">
-      <div class="sv-progress-fill" [style.width.%]="progressPct">
-        <div class="sv-progress-thumb"></div>
+      <!-- Seek bar -->
+      <div class="sv-progress-bar" (click)="onProgressClick($event)" (mousedown)="onProgressMouseDown($event)">
+        <div class="sv-progress-fill" [style.width.%]="progressPct">
+          <div class="sv-progress-thumb"></div>
+        </div>
       </div>
-    </div>
-      <!-- ══ INPUT CINE VIEWER ════════════════════════════════════════ -->
+
+      <!-- Input cine viewer -->
       <div class="sv-graph-card">
         <div class="sv-viewer-header input-header">
           <div class="sv-viewer-label">
@@ -137,31 +108,23 @@
             INPUT SIGNAL
           </div>
         </div>
-
         <div *ngIf="!inputSamples.length" class="sv-empty-state">
           <div class="sv-empty-icon">📂</div>
           <div class="sv-empty-text">Load a signal file to begin</div>
-          <div class="sv-empty-hint">Supported: .wav · .mp3 · .json</div>
+          <div class="sv-empty-hint">Supported: .wav · .mp3 · .json · .mat</div>
         </div>
-
         <app-cine-viewer
-          #inputCine
-          graphId="sv-input-graph"
-          label="Input"
-          color="#1a73e8"
-          [samples]="inputSamples"
-          [sampleRate]="sampleRate"
-          [playbackSpeed]="playbackSpeed"
-          [loop]="loop"
+          #inputCine graphId="sv-input-graph" label="Input" color="#1a73e8"
+          [samples]="inputSamples" [sampleRate]="sampleRate"
+          [playbackSpeed]="playbackSpeed" [loop]="loop"
           [externalSampleIdx]="currentSampleIdx"
-          [viewStart]="viewStart"
-          [viewWindow]="viewWindow"
+          [viewStart]="viewStart" [viewWindow]="viewWindow"
           [isAudioSignal]="isAudioSignal"
           (sampleIdxChange)="onInputSampleIdxChange($event)">
         </app-cine-viewer>
       </div>
 
-      <!-- ══ OUTPUT CINE VIEWER ═══════════════════════════════════════ -->
+      <!-- Output cine viewer -->
       <div class="sv-graph-card">
         <div class="sv-viewer-header output-header">
           <div class="sv-viewer-label">
@@ -169,37 +132,104 @@
             OUTPUT SIGNAL (EQ)
           </div>
         </div>
-
         <div *ngIf="!outputSamples.length" class="sv-empty-state small">
           <div class="sv-empty-text">EQ output will appear here after loading a signal</div>
         </div>
-
         <app-cine-viewer
-          #outputCine
-          graphId="sv-output-graph"
-          label="Output"
-          color="#34a853"
-          [samples]="outputSamples"
-          [sampleRate]="sampleRate"
-          [playbackSpeed]="playbackSpeed"
-          [loop]="loop"
+          #outputCine graphId="sv-output-graph" label="Output" color="#34a853"
+          [samples]="outputSamples" [sampleRate]="sampleRate"
+          [playbackSpeed]="playbackSpeed" [loop]="loop"
           [externalSampleIdx]="currentSampleIdx"
-          [viewStart]="viewStart"
-          [viewWindow]="viewWindow"
+          [viewStart]="viewStart" [viewWindow]="viewWindow"
           [isAudioSignal]="isAudioSignal"
           (sampleIdxChange)="onOutputSampleIdxChange($event)">
         </app-cine-viewer>
       </div>
 
-      <!-- ══ MODE PANEL (below cine viewers) ════════════════════════════ -->
-    @if (currentMode === 'generic') {
-      <app-generic-mode-panel
-        [inputSamples]="inputSamples"
-        [outputSamples]="outputSamples"
-        [sampleRate]="sampleRate"
-        [bands]="activeBands">
-      </app-generic-mode-panel>
-    }
+      <!-- ══ FFT graphs ══════════════════════════════════════════════ -->
+      @if (inputFftMagnitude.length) {
+
+        <!-- Shared FFT controls row — sits between the two FFT cards -->
+        <div class="sv-fft-shared-controls">
+
+          <!-- Scale toggle -->
+          <button class="sv-fft-scale-btn" (click)="toggleFftScale()">
+            {{ fftFreqScale === 'linear' ? '🎧 Audiogram' : '📈 Linear' }}
+          </button>
+
+          @if (fftFreqScale === 'linear') {
+            <!-- ZOOM (window size) -->
+            <div class="sv-fft-ctrl-group">
+              <span class="sv-ctrl-label">ZOOM</span>
+              <span class="sv-xscale-val">{{ fftWindowLabel }}</span>
+              <!--
+                min=0  → "show all"
+                max    → nyquist (full range = no zoom)
+                The slider goes from 0 (all) up to nyquist; we interpret
+                the value as the window width in Hz.
+              -->
+              <input type="range" class="sv-xscale-slider fft-slider"
+                     min="0"
+                     [max]="nyquist"
+                     step="100"
+                     [value]="fftWindowSize"
+                     (input)="onFftZoomChange($any($event.target).value)">
+            </div>
+
+            <!-- PAN (center frequency) — only meaningful when zoomed in -->
+            <div class="sv-fft-ctrl-group" [class.fft-ctrl-disabled]="!fftWindowSize">
+              <span class="sv-ctrl-label">PAN</span>
+              <span class="sv-xscale-val">{{ fftRangeLabel }}</span>
+              <!--
+                min / max are fixed to 0 and nyquist so the slider thumb
+                position is always stable — clampFftCenter() prevents the
+                window from going out of bounds.
+              -->
+              <input type="range" class="sv-xscale-slider fft-slider"
+                     min="0"
+                     [max]="nyquist"
+                     step="100"
+                     [value]="fftCenter"
+                     [disabled]="!fftWindowSize"
+                     (input)="onFftPanChange($any($event.target).value)">
+            </div>
+          }
+        </div>
+
+        <!-- Input FFT card -->
+        <div class="sv-graph-card sv-fft-card">
+          <div class="sv-viewer-header input-header">
+            <div class="sv-viewer-label">
+              <span class="sv-viewer-dot input-dot"></span>
+              INPUT — FREQUENCY DOMAIN
+            </div>
+            <span class="sv-fft-range-badge">{{ fftRangeLabel }}</span>
+          </div>
+          <div [id]="'sv-input-fft-graph'" class="sv-fft-plot"></div>
+        </div>
+
+        <!-- Output FFT card -->
+        <div class="sv-graph-card sv-fft-card">
+          <div class="sv-viewer-header output-header">
+            <div class="sv-viewer-label">
+              <span class="sv-viewer-dot output-dot"></span>
+              OUTPUT — FREQUENCY DOMAIN (EQ)
+            </div>
+            <span class="sv-fft-range-badge">{{ fftRangeLabel }}</span>
+          </div>
+          <div [id]="'sv-output-fft-graph'" class="sv-fft-plot"></div>
+        </div>
+
+        @if (currentMode === 'generic') {
+          <app-generic-mode-panel
+            [inputSamples]="inputSamples"
+            [outputSamples]="outputSamples"
+            [sampleRate]="sampleRate"
+            [eqVersion]="eqVersion">
+          </app-generic-mode-panel>
+        }
+      }
+
     </section>
   </div>
 </div>

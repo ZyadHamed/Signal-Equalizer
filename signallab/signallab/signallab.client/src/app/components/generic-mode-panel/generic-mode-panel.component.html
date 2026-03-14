@@ -1,46 +1,120 @@
+<!-- ══ GENERIC MODE PANEL ══════════════════════════════════════════════ -->
 <div class="gmp-root">
 
-  <!-- ── FFT ─────────────────────────────────────────────────────── -->
-  <div class="gmp-card">
-    <div class="gmp-card-header">
-      <div class="gmp-card-title">
-        <span class="gmp-dot fft-dot"></span>
-        FREQUENCY DOMAIN
-      </div>
-      <button class="gmp-btn"
-              [class.active]="freqScale === 'audiogram'"
-              (click)="toggleFreqScale()">
-        {{ freqScale === 'linear' ? '〜 Linear' : '◎ Audiogram Scale' }}
-      </button>
-    </div>
-    <div *ngIf="!inputSamples?.length" class="gmp-placeholder-msg">
-      Load a signal to see the frequency domain
-    </div>
-    <div [id]="fftId"></div>
+  <!-- ── Section header ─────────────────────────────────────────────── -->
+  <div class="gmp-section-header">
+    <svg class="gmp-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <rect x="2" y="3" width="20" height="18" rx="2"/>
+      <path d="M2 9h20M8 9v12M14 9v12"/>
+    </svg>
+    <span>SPECTROGRAM ANALYSIS</span>
   </div>
 
-  <!-- ── Audiogram ────────────────────────────────────────────────── -->
-  <div class="gmp-card">
-    <div class="gmp-card-header">
-      <div class="gmp-card-title">
-        <span class="gmp-dot audiogram-dot"></span>
-        AUDIOGRAM
-        <span class="gmp-badge">Placeholder</span>
+  <!-- ── Shared parameter controls ──────────────────────────────────── -->
+  <div class="gmp-params-bar">
+
+    <div class="gmp-param-group">
+      <label class="gmp-param-label" for="gmp-win">WINDOW SIZE</label>
+      <div class="gmp-param-row">
+        <span class="gmp-param-val">{{ windowSize }}</span>
+        <input
+          id="gmp-win"
+          type="range"
+          class="gmp-slider"
+          min="32" max="2048" step="32"
+          [value]="windowSize"
+          (input)="onWindowSizeChange($any($event.target).value)"
+        >
+        <span class="gmp-param-hint">samples</span>
       </div>
     </div>
-    <div [id]="audiogramId"></div>
-  </div>
 
-  <!-- ── Spectrogram ──────────────────────────────────────────────── -->
-  <div class="gmp-card">
-    <div class="gmp-card-header">
-      <div class="gmp-card-title">
-        <span class="gmp-dot spectrogram-dot"></span>
-        SPECTROGRAM
-        <span class="gmp-badge">Placeholder</span>
+    <div class="gmp-param-divider"></div>
+
+    <div class="gmp-param-group">
+      <label class="gmp-param-label" for="gmp-ovlp">OVERLAP</label>
+      <div class="gmp-param-row">
+        <span class="gmp-param-val">{{ overlap }}</span>
+        <input
+          id="gmp-ovlp"
+          type="range"
+          class="gmp-slider"
+          min="0"
+          [max]="overlapMax"
+          step="1"
+          [value]="overlap"
+          (input)="onOverlapChange($any($event.target).value)"
+        >
+        <span class="gmp-param-hint">samples</span>
       </div>
     </div>
-    <div [id]="spectrogramId"></div>
+
+    <div class="gmp-param-divider"></div>
+
+    <div class="gmp-param-group gmp-param-info">
+      <span class="gmp-param-label">HOP SIZE</span>
+      <span class="gmp-hop-val">{{ windowSize - overlap }}</span>
+      <span class="gmp-param-hint">samples</span>
+    </div>
+
+    <!-- Loading indicators -->
+    <div class="gmp-loading-group" *ngIf="isLoadingInput || isLoadingOutput">
+      <span class="gmp-spinner" *ngIf="isLoadingInput">
+        <span class="gmp-dot"></span>
+        <span class="gmp-dot"></span>
+        <span class="gmp-dot"></span>
+        Computing input…
+      </span>
+      <span class="gmp-spinner" *ngIf="isLoadingOutput">
+        <span class="gmp-dot"></span>
+        <span class="gmp-dot"></span>
+        <span class="gmp-dot"></span>
+        Computing output…
+      </span>
+    </div>
+
   </div>
 
+  <!-- ── Error message ──────────────────────────────────────────────── -->
+  <div class="gmp-error" *ngIf="errorMsg">
+    ⚠ {{ errorMsg }}
+  </div>
+
+  <!-- ── Spectrogram cards ───────────────────────────────────────────── -->
+  <div class="gmp-cards">
+
+    <!-- Input -->
+    <div class="gmp-card input-card">
+      <div class="gmp-card-header">
+        <span class="gmp-card-dot input-dot"></span>
+        <span class="gmp-card-title">INPUT — TIME / FREQUENCY</span>
+        <span class="gmp-card-badge" *ngIf="isLoadingInput">computing…</span>
+      </div>
+
+      <div class="gmp-plot-wrap" [class.gmp-plot-loading]="isLoadingInput">
+        <div *ngIf="!inputSamples.length && !isLoadingInput" class="gmp-empty">
+          <div class="gmp-empty-icon">📊</div>
+          <div class="gmp-empty-text">Load a signal to view the spectrogram</div>
+        </div>
+        <div [id]="'gmp-input-spectrogram'" class="gmp-plot"></div>
+      </div>
+    </div>
+
+    <!-- Output -->
+    <div class="gmp-card output-card">
+      <div class="gmp-card-header">
+        <span class="gmp-card-dot output-dot"></span>
+        <span class="gmp-card-title">OUTPUT (EQ) — TIME / FREQUENCY</span>
+        <span class="gmp-card-badge" *ngIf="isLoadingOutput">recomputing…</span>
+      </div>
+
+      <div class="gmp-plot-wrap" [class.gmp-plot-loading]="isLoadingOutput">
+        <div *ngIf="!outputSamples.length && !isLoadingOutput" class="gmp-empty small">
+          <div class="gmp-empty-text">EQ output spectrogram will appear after signal load</div>
+        </div>
+        <div [id]="'gmp-output-spectrogram'" class="gmp-plot"></div>
+      </div>
+    </div>
+
+  </div>
 </div>

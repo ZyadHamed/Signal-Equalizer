@@ -1,75 +1,152 @@
-<!-- Hidden config file input -->
 <input #configInput type="file" accept=".json" hidden (change)="onConfigSelected($event)">
 
 <!-- ── Config toolbar ─────────────────────────────────────────────── -->
 <div class="eq-toolbar">
-  <button class="eq-btn primary" (click)="triggerConfigInput()">
-    ⤒ Load Config
-  </button>
-  <button class="eq-btn" (click)="downloadCurrentConfig()">
-    ⤓ Save Config
-  </button>
-  <button class="eq-btn" (click)="resetToDefault()">
-    ↺ Reset
-  </button>
+  <button class="eq-btn primary" (click)="triggerConfigInput()">⤒ Load Config</button>
+  <button class="eq-btn"         (click)="downloadCurrentConfig()">⤓ Save Config</button>
+  <button class="eq-btn"         (click)="resetToDefault()">↺ Reset</button>
 </div>
 
-<!-- ── Config error ───────────────────────────────────────────────── -->
-<div class="eq-config-error" *ngIf="configError">
-  ⚠ {{ configError }}
-</div>
+<div class="eq-config-error" *ngIf="configError">⚠ {{ configError }}</div>
 
-<!-- ── Add-band form (generic mode only) ──────────────────────────── -->
-<div class="eq-add-band" *ngIf="canAddBands">
-  <div class="eq-section-title">＋ Add Band</div>
+<!-- ══════════════════════════════════════════════════════════════════
+     GENERIC MODE
+     ══════════════════════════════════════════════════════════════ -->
+@if (isGeneric) {
 
-  <span class="eq-label">Label</span>
-  <input class="eq-input" [(ngModel)]="newBandLabel" placeholder="Band name">
+  <!-- Add-band form -->
+  <div class="eq-add-band">
+    <div class="eq-section-title">＋ Add Band</div>
 
-  <div class="eq-row">
-    <div class="eq-col">
-      <span class="eq-label">From (Hz)</span>
-      <input class="eq-input" type="number" [(ngModel)]="newBandFrom" min="0">
-    </div>
-    <div class="eq-col">
-      <span class="eq-label">To (Hz)</span>
-      <input class="eq-input" type="number" [(ngModel)]="newBandTo" min="1">
-    </div>
-  </div>
+    <span class="eq-label">Label</span>
+    <input class="eq-input" [(ngModel)]="newBandLabel" placeholder="Band name">
 
-  <span class="eq-label">Default Gain ({{ newBandGain | number:'1.2-2' }}×)</span>
-  <input type="range" class="eq-range"
-         min="0" max="2" step="0.01"
-         [(ngModel)]="newBandGain">
-
-  <button class="eq-btn primary full" (click)="addBand()">Add Band</button>
-</div>
-
-<!-- ── Band sliders ───────────────────────────────────────────────── -->
-<div class="eq-sliders-list">
-  <div class="eq-slider-card" *ngFor="let band of bands; let i = index">
-
-    <div class="eq-slider-head">
-      <span class="eq-slider-label">{{ band.label }}</span>
-      <span class="eq-gain-val">{{ band.gain | number:'1.2-2' }}×</span>
-      <button class="eq-remove-btn" *ngIf="canAddBands" (click)="removeBand(i)">✕</button>
-    </div>
-
-    <div class="eq-ranges">
-      <span class="eq-range-chip" *ngFor="let r of band.ranges">
-        {{ r.from }}–{{ r.to }} Hz
-      </span>
-    </div>
-
-    <div class="eq-slider-wrap">
-      <div class="eq-slider-marks">
-        <span>0×</span><span>1×</span><span>2×</span>
+    <div class="eq-row">
+      <div class="eq-col">
+        <span class="eq-label">From (Hz)</span>
+        <input class="eq-input" type="number" [(ngModel)]="newBandFrom" min="0">
       </div>
-      <input type="range" class="eq-slider"
-             min="0" max="2" step="0.01"
-             [value]="band.gain"
-             (input)="onGainChange(i, $any($event.target).value)">
+      <div class="eq-col">
+        <span class="eq-label">To (Hz)</span>
+        <input class="eq-input" type="number" [(ngModel)]="newBandTo" min="1">
+      </div>
     </div>
 
+    <span class="eq-label">Default Gain ({{ newBandGain | number:'1.2-2' }}×)</span>
+    <input type="range" class="eq-range" min="0" max="2" step="0.01" [(ngModel)]="newBandGain">
+
+    <button class="eq-btn primary full" (click)="addBand()">Add Band</button>
   </div>
-</div>
+
+  <!-- Band sliders -->
+  <div class="eq-sliders-list">
+    <div class="eq-slider-card" *ngFor="let band of bands; let i = index">
+      <div class="eq-slider-head">
+        <span class="eq-slider-label">{{ band.label }}</span>
+        <span class="eq-gain-val">{{ band.gain | number:'1.2-2' }}×</span>
+        <button class="eq-remove-btn" (click)="removeBand(i)">✕</button>
+      </div>
+      <div class="eq-ranges">
+        <span class="eq-range-chip" *ngFor="let r of band.ranges">{{ r.from }}–{{ r.to }} Hz</span>
+      </div>
+      <div class="eq-slider-wrap">
+        <div class="eq-slider-marks"><span>0×</span><span>1×</span><span>2×</span></div>
+        <input type="range" class="eq-slider" min="0" max="2" step="0.01"
+               [value]="band.gain"
+               (input)="onGainChange(i, $any($event.target).value)">
+      </div>
+    </div>
+  </div>
+
+}
+
+<!-- ══════════════════════════════════════════════════════════════════
+     ADVANCED MODES  (musical / animal / human / ecg)
+     ══════════════════════════════════════════════════════════════ -->
+@if (!isGeneric) {
+
+  <div class="eq-sliders-list">
+    <div class="eq-slider-card advanced-card" *ngFor="let entity of entities; let i = index">
+
+      <!-- Entity header -->
+      <div class="eq-slider-head">
+        <span class="eq-slider-label">{{ entity.label }}</span>
+      </div>
+
+      <!-- Domain tabs -->
+      <div class="eq-domain-tabs">
+        <button class="eq-tab-btn"
+                [class.active]="activeTabs[i] === 'freq'"
+                (click)="setTab(i, 'freq')">
+          📈 Frequency
+        </button>
+        <button class="eq-tab-btn"
+                [class.active]="activeTabs[i] === 'wavelet'"
+                (click)="setTab(i, 'wavelet')">
+          〜 Wavelet
+        </button>
+      </div>
+
+      <!-- ── Frequency tab ──────────────────────────────────────── -->
+      @if (activeTabs[i] === 'freq') {
+        <div class="eq-tab-body">
+          <div class="eq-ranges">
+            <span class="eq-range-chip" *ngFor="let r of entity.freqBands">
+              {{ r.from }}–{{ r.to }} Hz
+            </span>
+          </div>
+          <span class="eq-label">Gain ({{ entity.freqGain | number:'1.2-2' }}×)</span>
+          <div class="eq-slider-wrap">
+            <div class="eq-slider-marks"><span>0×</span><span>1×</span><span>2×</span></div>
+            <input type="range" class="eq-slider" min="0" max="2" step="0.01"
+                   [value]="entity.freqGain"
+                   (input)="onEntityFreqGainChange(i, $any($event.target).value)">
+          </div>
+        </div>
+      }
+
+      <!-- ── Wavelet tab ────────────────────────────────────────── -->
+      @if (activeTabs[i] === 'wavelet') {
+        <div class="eq-tab-body">
+
+          <!-- Wavelet family selector -->
+          <span class="eq-label">Wavelet</span>
+          <select class="eq-input eq-select"
+                  [value]="entity.wavelet"
+                  (change)="onWaveletNameChange(i, $any($event.target).value)">
+            <option value="haar">Haar</option>
+            <option value="db2">Daubechies 2 (db2)</option>
+            <option value="db4">Daubechies 4 (db4)</option>
+            <option value="db6">Daubechies 6 (db6)</option>
+            <option value="db8">Daubechies 8 (db8)</option>
+            <option value="sym4">Symlet 4 (sym4)</option>
+            <option value="sym5">Symlet 5 (sym5)</option>
+            <option value="coif2">Coiflet 2 (coif2)</option>
+            <option value="bior3.3">Biorthogonal 3.3</option>
+          </select>
+
+          <!-- Wavelet bands (levels) info chips -->
+          <span class="eq-label" style="margin-top:8px">Decomposition Levels</span>
+          <div class="eq-ranges">
+            <span class="eq-range-chip wavelet-chip"
+                  *ngFor="let wb of entity.waveletBands">
+              L{{ wb.level }} — {{ wb.name }}
+            </span>
+          </div>
+
+          <!-- Single gain for all wavelet bands of this entity -->
+          <span class="eq-label">Gain ({{ entity.waveletGain | number:'1.2-2' }}×)</span>
+          <div class="eq-slider-wrap">
+            <div class="eq-slider-marks"><span>0×</span><span>1×</span><span>2×</span></div>
+            <input type="range" class="eq-slider wavelet-slider" min="0" max="2" step="0.01"
+                   [value]="entity.waveletGain"
+                   (input)="onEntityWaveletGainChange(i, $any($event.target).value)">
+          </div>
+
+        </div>
+      }
+
+    </div>
+  </div>
+
+}

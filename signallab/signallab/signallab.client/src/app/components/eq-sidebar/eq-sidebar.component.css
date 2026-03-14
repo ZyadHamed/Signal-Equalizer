@@ -251,3 +251,74 @@
   border: none;
   box-shadow: 0 1px 3px rgba(26,115,232,0.4);
 }
+
+/* ── Domain tabs ──────────────────────────────────────────────────── */
+.eq-domain-tabs {
+  display: flex;
+  gap: 4px;
+  margin: 8px 0 4px;
+}
+
+.eq-tab-btn {
+  flex: 1;
+  padding: 5px 0;
+  font-size: 11px;
+  font-weight: 600;
+  border: 1px solid #d0dce8;
+  border-radius: 6px;
+  background: #f4f7fb;
+  color: #6a8caa;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.eq-tab-btn.active {
+  background: #1a73e8;
+  color: #ffffff;
+  border-color: #1a73e8;
+}
+
+.eq-tab-btn:nth-child(2).active {
+  background: #7c3aed;
+  border-color: #7c3aed;
+}
+
+/* ── Tab body ─────────────────────────────────────────────────────── */
+.eq-tab-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 6px;
+  animation: fadeIn 0.15s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Wavelet chips ────────────────────────────────────────────────── */
+.wavelet-chip {
+  background: #ede9fe;
+  color: #5b21b6;
+  border-color: #c4b5fd;
+}
+
+/* ── Wavelet slider accent ────────────────────────────────────────── */
+.wavelet-slider {
+  accent-color: #7c3aed;
+}
+
+/* ── Select ───────────────────────────────────────────────────────── */
+.eq-select {
+  appearance: none;
+  cursor: pointer;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%236a8caa'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  padding-right: 28px;
+}
+
+.advanced-card {
+  border-left: 3px solid #1a73e8;
+}

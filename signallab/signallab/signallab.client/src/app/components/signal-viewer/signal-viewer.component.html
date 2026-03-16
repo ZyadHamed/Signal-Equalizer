@@ -43,11 +43,15 @@
         EQUALIZER
         <span class="sv-mode-badge">{{ getModeName(currentMode) }}</span>
       </div>
-      <app-eq-sidebar
-        [mode]="currentMode"
-        (bandsChange)="onBandsChange($event)"
-        (waveletChange)="onWaveletChange($event)">   <!-- add this line -->
-      </app-eq-sidebar>
+    <app-eq-sidebar
+      #eqSidebar
+      [mode]="currentMode"
+      [signalFile]="loadedFile"
+      (bandsChange)="onBandsChange($event)"
+      (waveletChange)="onWaveletChange($event)"
+      (waveletOutputChange)="onWaveletOutputChange($event)"
+      (aiOutputChange)="onAiOutputChange($event)"
+    />
     </aside>
 
     <!-- ── Main panel ───────────────────────────────────────────────── -->

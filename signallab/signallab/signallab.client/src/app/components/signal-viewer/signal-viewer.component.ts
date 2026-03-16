@@ -48,6 +48,7 @@ export class SignalViewerComponent implements OnInit, AfterViewInit, OnDestroy {
   @ViewChild('fileInput')  fileInputRef!:  ElementRef<HTMLInputElement>;
   @ViewChild('inputCine')  inputCineRef!:  CineViewerComponent;
   @ViewChild('outputCine') outputCineRef!: CineViewerComponent;
+  @ViewChild('eqSidebar') eqSidebarRef!: EqSidebarComponent;
 
   // ── Mode ───────────────────────────────────────────────────────────
   readonly modeKeys: AppMode[] = ['generic', 'musical', 'animal', 'human', 'ecg'];
@@ -64,6 +65,7 @@ export class SignalViewerComponent implements OnInit, AfterViewInit, OnDestroy {
   outputSamples: any = new Float32Array(0);
   sampleRate   = 44100;
   fileName     = '';
+  loadedFile: File | null = null;
   isProcessing = false;
   isAudioSignal = false;
   eqVersion = 0
@@ -203,9 +205,10 @@ export class SignalViewerComponent implements OnInit, AfterViewInit, OnDestroy {
     const file = (event.target as HTMLInputElement).files?.[0];
     if (!file) return;
     this.fileName = file.name;
+    this.loadedFile = file;
     const ext = file.name.split('.').pop()?.toLowerCase();
     if      (ext === 'json') await this.loadJsonSignal(file);
-    else if (ext === 'mat')  await this.loadMatFile(file);
+    else if (ext === 'mat' || ext == "hea")  await this.loadMatFile(file);
     else                     await this.loadAudioFile(file);
     (event.target as HTMLInputElement).value = '';
   }
@@ -376,7 +379,9 @@ export class SignalViewerComponent implements OnInit, AfterViewInit, OnDestroy {
       this.outputSamples      = new Float32Array(outputData.modified_signal);
 
       if (this.isAudioSignal) this.rebuildOutputAudioBuffer();
-
+      this.eqVersion++;
+      this.isProcessing = false;
+      this.cdr.detectChanges();
       setTimeout(() => {
         this.drawFft(INPUT_FFT_ID,  this.inputFftMagnitude,  'Input FFT',       '#1a73e8');
         this.drawFft(OUTPUT_FFT_ID, this.outputFftMagnitude, 'Output FFT (EQ)', '#34a853');
@@ -385,9 +390,7 @@ export class SignalViewerComponent implements OnInit, AfterViewInit, OnDestroy {
     } catch (err) {
       console.error('EQ error:', err);
     }
-    this.eqVersion++;
-    this.isProcessing = false;
-    this.cdr.detectChanges();
+
   }
 
   // ── FFT drawing ────────────────────────────────────────────────────
@@ -483,7 +486,7 @@ export class SignalViewerComponent implements OnInit, AfterViewInit, OnDestroy {
       graphId,
       traces,
       {
-        uirevision: `${graphId}-${this.fftFreqScale}-${xMin}-${xMax}`,
+        uirevision: `${graphId}-${this.fftFreqScale}-${xMin}-${xMax}-${this.eqVersion}`,
         title: { text: title, font: { size: 13, color: '#1a2b4a' } },
         height: 240,
         margin: { l: 60, r: 20, t: 44, b: 55 },
@@ -508,9 +511,54 @@ export class SignalViewerComponent implements OnInit, AfterViewInit, OnDestroy {
     );
   }
 
-  onWaveletChange(instructions: WaveletInstruction[]): void {
-  // Send to your wavelet backend endpoint here
-  console.log('Wavelet instructions:', instructions);
+onWaveletChange(instructions: WaveletInstruction[]): void {
+  if (!this.inputSamples.length) return;
+  this.isProcessing = true;
+  this.cdr.detectChanges();
+  this.eqSidebarRef.applyWavelet(this.inputSamples);
+}
+
+private async fetchFftForSignal(signal: Float32Array): Promise<number[]> {
+  const res = await fetch('http://127.0.0.1:8000/applyfrequencygains', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      signal: Array.from(signal),
+      sampling_rate: this.sampleRate,
+      gain_bands: [],   // no gain — just compute FFT
+    }),
+  });
+  if (!res.ok) throw new Error(`FFT fetch failed: ${res.status}`);
+  const data = await res.json();
+  return data.modified_fft_magnitude;
+}
+
+async onWaveletOutputChange(processed: Float32Array): Promise<void> {
+  this.outputSamples = processed;
+  if (this.isAudioSignal) this.rebuildOutputAudioBuffer();
+  this.eqVersion++;
+
+  try {
+    this.outputFftMagnitude = await this.fetchFftForSignal(processed); // ✅ fresh FFT
+  } catch (err) {
+    console.error('Could not fetch wavelet output FFT:', err);
+  }
+
+  this.isProcessing = false;
+  this.cdr.detectChanges();
+  setTimeout(() => {
+    this.drawFft(OUTPUT_FFT_ID, this.outputFftMagnitude, 'Output FFT (Wavelet)', '#34a853');
+  }, 0);
+}
+
+onAiOutputChange(blended: Float32Array): void {
+  this.outputSamples = blended;
+  if (this.isAudioSignal) this.rebuildOutputAudioBuffer();
+  this.eqVersion++;
+  this.cdr.detectChanges();
+  setTimeout(() => {
+    this.drawFft(OUTPUT_FFT_ID, this.outputFftMagnitude, 'Output FFT (EQ)', '#34a853');
+  }, 0);
 }
 
   // ── FFT pan / zoom handlers ────────────────────────────────────────
@@ -558,6 +606,13 @@ export class SignalViewerComponent implements OnInit, AfterViewInit, OnDestroy {
     const buf = this.audioCtx!.createBuffer(1, this.outputSamples.length, this.sampleRate);
     buf.copyToChannel(this.outputSamples, 0);
     this.outputAudioBuffer = buf;
+
+    // If output is actively playing, restart it at the current position
+    if (this.isPlaying && !this.isPaused && this.playTarget !== 'input') {
+      const currentOffset = this.currentSampleIdx / this.sampleRate;
+      this.stopAudioSource('output');
+      this.startAudioFrom('output', currentOffset);
+    }
   }
 
   // ── Global transport ───────────────────────────────────────────────

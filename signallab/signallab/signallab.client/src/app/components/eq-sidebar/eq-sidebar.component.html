@@ -5,16 +5,91 @@
   <button class="eq-btn primary" (click)="triggerConfigInput()">⤒ Load Config</button>
   <button class="eq-btn"         (click)="downloadCurrentConfig()">⤓ Save Config</button>
   <button class="eq-btn"         (click)="resetToDefault()">↺ Reset</button>
+
+  <!-- AI Mode toggle — only for non-generic modes -->
+  @if (!isGeneric) {
+    <button class="eq-btn ai-toggle-btn"
+            [class.ai-active]="isAiMode"
+            (click)="toggleAiMode()">
+      🤖 AI Mode
+    </button>
+  }
 </div>
 
 <div class="eq-config-error" *ngIf="configError">⚠ {{ configError }}</div>
+
+<!-- ══════════════════════════════════════════════════════════════════
+     AI MODE PANEL  (non-generic only, shown when isAiMode = true)
+     ══════════════════════════════════════════════════════════════ -->
+@if (!isGeneric && isAiMode) {
+  <div class="ai-panel">
+
+    <!-- Header -->
+    <div class="ai-panel-header">
+      <span class="ai-panel-title">🤖 AI Decomposition</span>
+      <span class="ai-panel-subtitle">Blend signal components detected by the AI model</span>
+    </div>
+
+    <!-- No file loaded yet -->
+    @if (!aiIsLoading && !aiHasComponents && !aiError) {
+      <div class="ai-no-signal">
+        <span class="ai-no-signal-icon">⚠️</span>
+        <span>No signal loaded. Load a signal file first.</span>
+      </div>
+    }
+
+    <!-- Loading -->
+    @if (aiIsLoading) {
+      <div class="ai-loading">
+        <div class="ai-spinner"></div>
+        <span>Decomposing signal…</span>
+      </div>
+    }
+
+    <!-- Error -->
+    @if (aiError && !aiIsLoading) {
+      <div class="eq-config-error ai-error-block">
+        ⚠ {{ aiError }}
+        <button class="eq-btn ai-retry-btn"
+                (click)="signalFile && decomposeSignal(signalFile)">
+          Retry
+        </button>
+      </div>
+    }
+
+    <!-- Component sliders -->
+    @if (aiHasComponents && !aiIsLoading) {
+      <div class="ai-sliders-header">
+        <span class="eq-label">Component Weights</span>
+        <button class="eq-btn ai-reset-weights-btn" (click)="resetAiWeights()">↺ Reset</button>
+      </div>
+
+      <div class="ai-sliders-list">
+        @for (slider of aiSliders; track slider.key; let idx = $index) {
+          <div class="ai-slider-card">
+            <div class="ai-slider-head">
+              <span class="ai-slider-label">{{ slider.label }}</span>
+              <span class="ai-weight-val">{{ slider.weight | number:'1.2-2' }}×</span>
+            </div>
+            <div class="eq-slider-wrap">
+              <div class="eq-slider-marks"><span>0×</span><span>1×</span><span>2×</span></div>
+              <input type="range" class="eq-slider ai-slider" min="0" max="2" step="0.01"
+                     [value]="slider.weight"
+                     (input)="onAiWeightChange(idx, $any($event.target).value)">
+            </div>
+          </div>
+        }
+      </div>
+    }
+
+  </div>
+}
 
 <!-- ══════════════════════════════════════════════════════════════════
      GENERIC MODE
      ══════════════════════════════════════════════════════════════ -->
 @if (isGeneric) {
 
-  <!-- Add-band form -->
   <div class="eq-add-band">
     <div class="eq-section-title">＋ Add Band</div>
 
@@ -38,7 +113,6 @@
     <button class="eq-btn primary full" (click)="addBand()">Add Band</button>
   </div>
 
-  <!-- Band sliders -->
   <div class="eq-sliders-list">
     <div class="eq-slider-card" *ngFor="let band of bands; let i = index">
       <div class="eq-slider-head">
@@ -62,18 +136,17 @@
 
 <!-- ══════════════════════════════════════════════════════════════════
      ADVANCED MODES  (musical / animal / human / ecg)
+     Hidden while AI mode is active to avoid visual clutter
      ══════════════════════════════════════════════════════════════ -->
-@if (!isGeneric) {
+@if (!isGeneric && !isAiMode) {
 
   <div class="eq-sliders-list">
     <div class="eq-slider-card advanced-card" *ngFor="let entity of entities; let i = index">
 
-      <!-- Entity header -->
       <div class="eq-slider-head">
         <span class="eq-slider-label">{{ entity.label }}</span>
       </div>
 
-      <!-- Domain tabs -->
       <div class="eq-domain-tabs">
         <button class="eq-tab-btn"
                 [class.active]="activeTabs[i] === 'freq'"
@@ -87,7 +160,6 @@
         </button>
       </div>
 
-      <!-- ── Frequency tab ──────────────────────────────────────── -->
       @if (activeTabs[i] === 'freq') {
         <div class="eq-tab-body">
           <div class="eq-ranges">
@@ -105,11 +177,8 @@
         </div>
       }
 
-      <!-- ── Wavelet tab ────────────────────────────────────────── -->
       @if (activeTabs[i] === 'wavelet') {
         <div class="eq-tab-body">
-
-          <!-- Wavelet family selector -->
           <span class="eq-label">Wavelet</span>
           <select class="eq-input eq-select"
                   [value]="entity.wavelet"
@@ -125,16 +194,13 @@
             <option value="bior3.3">Biorthogonal 3.3</option>
           </select>
 
-          <!-- Wavelet bands (levels) info chips -->
           <span class="eq-label" style="margin-top:8px">Decomposition Levels</span>
           <div class="eq-ranges">
-            <span class="eq-range-chip wavelet-chip"
-                  *ngFor="let wb of entity.waveletBands">
+            <span class="eq-range-chip wavelet-chip" *ngFor="let wb of entity.waveletBands">
               L{{ wb.level }} — {{ wb.name }}
             </span>
           </div>
 
-          <!-- Single gain for all wavelet bands of this entity -->
           <span class="eq-label">Gain ({{ entity.waveletGain | number:'1.2-2' }}×)</span>
           <div class="eq-slider-wrap">
             <div class="eq-slider-marks"><span>0×</span><span>1×</span><span>2×</span></div>
@@ -142,7 +208,6 @@
                    [value]="entity.waveletGain"
                    (input)="onEntityWaveletGainChange(i, $any($event.target).value)">
           </div>
-
         </div>
       }
 

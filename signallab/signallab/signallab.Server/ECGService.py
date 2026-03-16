@@ -4,7 +4,6 @@ import pandas as pd
 import scipy.io
 import matplotlib.pyplot as plt
 from tqdm import tqdm
-import xgboost as xgb 
 from scipy.stats import skew, kurtosis
 warnings.filterwarnings('ignore')
 import joblib
@@ -15,7 +14,6 @@ import torch.nn.functional as F
 import torch.optim as optim
 from torch.utils.data import Dataset, DataLoader
 import torchvision
-from transformers import AutoModel
 
 from sklearn.metrics import (
     classification_report, roc_auc_score,

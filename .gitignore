@@ -1,1 +1,4 @@
 /signallab/signallab/signallab.Server/__pycache__
+/signallab/signallab/signallab.Server/ECG-Arrhythmia/mit-database
+signallab/signallab/signallab.Server/pretrained_models/sepformer-wsj02mix/masknet.ckpt
+/signallab/signallab/signallab.Server/AudioSep-main/models/CLAP/open_clip/__pycache__

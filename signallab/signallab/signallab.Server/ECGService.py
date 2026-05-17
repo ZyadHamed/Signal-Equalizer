@@ -5,6 +5,7 @@ import scipy.io
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 from scipy.stats import skew, kurtosis
+import wfdb
 warnings.filterwarnings('ignore')
 import joblib
 
@@ -64,38 +65,108 @@ def load_ecg(path):
                 break
     return ecg.astype(np.float32)
 
-
 def mat_to_json(path: str) -> dict:
-    """
-    Converts a .mat ECG file to a JSON-compatible dict with the structure:
-    {
-        "signals": [[sample0_lead0, sample0_lead1, ...], [sample1_lead0, ...], ...],
-        "channels": ["I", "II", ...],
-        "fs": 500
-    }
-    """
-    ecg = load_ecg(path)
+    base = path
+    for ext in (".mat", ".hea", ".dat", ".csv"):
+        if path.endswith(ext):
+            base = path[: -len(ext)]
+            break
 
-    # ecg shape can be (leads, samples) or (samples, leads) — normalize to (leads, samples)
-    if ecg.ndim == 1:
-        # Single lead — wrap in extra dimension
-        ecg = ecg[np.newaxis, :]
+    mat_path = base + ".mat"
+    hea_path = base + ".hea"
+    dat_path = base + ".dat"
+    csv_path = base + ".csv"
 
-    if ecg.shape[0] > ecg.shape[1]:
-        # More rows than columns → likely (samples, leads), transpose it
-        ecg = ecg.T
+    wfdb_sig_names = None
 
-    num_leads = ecg.shape[0]
+    if os.path.exists(csv_path):
+        # ── .csv path ────────────────────────────────────────────────────────
+        df = pd.read_csv(csv_path)
 
-    # Match available leads to LEAD_NAMES, fall back to generic names if more leads than expected
-    channels = LEAD_NAMES[:num_leads] if num_leads <= len(LEAD_NAMES) else [f"Lead_{i+1}" for i in range(num_leads)]
+        # Normalise column names to lowercase for flexible matching
+        df.columns = df.columns.str.strip().str.lower()
 
-    # Transpose to (samples, leads) for the signals array
-    # signals[i] = [lead0_val, lead1_val, ...] at sample i
+        if "time" not in df.columns or "amplitude" not in df.columns:
+            raise Exception(
+                "CSV file must contain 'time' and 'amplitude' columns. "
+                f"Found columns: {list(df.columns)}"
+            )
+
+        time_col = df["time"].to_numpy(dtype=np.float64)
+        amp_col  = df["amplitude"].to_numpy(dtype=np.float64)
+
+        # Infer sampling frequency from time deltas
+        if len(time_col) > 1:
+            dt = np.median(np.diff(time_col))
+            fs = round(1.0 / dt) if dt > 0 else 500
+        else:
+            fs = 500
+
+        ecg            = amp_col[np.newaxis, :]   # shape: (1, samples)
+        channels       = ["ECG"]
+
+    elif os.path.exists(mat_path):
+        # ── .mat path ────────────────────────────────────────────────────────
+        ecg = load_ecg(mat_path)
+        fs  = 500
+
+        if os.path.exists(hea_path):
+            with open(hea_path, "r") as f:
+                first_line = f.readline().strip().split()
+            if len(first_line) >= 3:
+                try:
+                    fs = int(first_line[2])
+                except ValueError:
+                    pass
+
+    elif os.path.exists(hea_path) and os.path.exists(dat_path):
+        # ── WFDB path — both .hea AND .dat must be present ───────────────────
+        record         = wfdb.rdrecord(base)
+        ecg            = record.p_signal
+        fs             = record.fs
+        wfdb_sig_names = record.sig_name
+
+    elif os.path.exists(hea_path) and not os.path.exists(dat_path):
+        # ── .hea uploaded without .dat ───────────────────────────────────────
+        raise Exception(
+            f"A .hea file was uploaded but the companion .dat file is missing. "
+            f"Please upload both '{os.path.basename(base)}.hea' "
+            f"and '{os.path.basename(base)}.dat' together."
+        )
+
+    else:
+        raise Exception(
+            f"No recognisable ECG file found for record: '{os.path.basename(base)}'. "
+            f"Upload a .mat file, a .csv file, or both .hea and .dat files together."
+        )
+
+    # ── Normalise shape to (leads, samples) ─────────────────────────────────
+    if not os.path.exists(csv_path):
+        ecg = np.array(ecg, dtype=np.float64)
+
+        if ecg.ndim == 1:
+            ecg = ecg[np.newaxis, :]
+
+        if ecg.shape[0] > ecg.shape[1]:
+            ecg = ecg.T
+
+        num_leads = ecg.shape[0]
+
+        # ── Assign channel names ─────────────────────────────────────────────
+        if wfdb_sig_names and len(wfdb_sig_names) == num_leads:
+            channels = wfdb_sig_names
+        elif num_leads <= len(LEAD_NAMES):
+            channels = LEAD_NAMES[:num_leads]
+        else:
+            channels = [f"Lead_{i + 1}" for i in range(num_leads)]
+
+    # ── Build output ─────────────────────────────────────────────────────────
     signals = ecg.T.tolist()
 
     return {
-        "signals": signals,
+        "signals":  signals,
         "channels": channels,
-        "fs": 500  # Default ECG sampling frequency; override if known
+        "fs":       int(fs),
     }
+
+

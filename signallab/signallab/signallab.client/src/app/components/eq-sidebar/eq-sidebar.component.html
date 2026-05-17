@@ -6,7 +6,6 @@
   <button class="eq-btn"         (click)="downloadCurrentConfig()">⤓ Save Config</button>
   <button class="eq-btn"         (click)="resetToDefault()">↺ Reset</button>
 
-  <!-- AI Mode toggle — only for non-generic modes -->
   @if (!isGeneric) {
     <button class="eq-btn ai-toggle-btn"
             [class.ai-active]="isAiMode"
@@ -19,18 +18,16 @@
 <div class="eq-config-error" *ngIf="configError">⚠ {{ configError }}</div>
 
 <!-- ══════════════════════════════════════════════════════════════════
-     AI MODE PANEL  (non-generic only, shown when isAiMode = true)
+     AI MODE PANEL
      ══════════════════════════════════════════════════════════════ -->
 @if (!isGeneric && isAiMode) {
   <div class="ai-panel">
 
-    <!-- Header -->
     <div class="ai-panel-header">
       <span class="ai-panel-title">🤖 AI Decomposition</span>
       <span class="ai-panel-subtitle">Blend signal components detected by the AI model</span>
     </div>
 
-    <!-- No file loaded yet -->
     @if (!aiIsLoading && !aiHasComponents && !aiError) {
       <div class="ai-no-signal">
         <span class="ai-no-signal-icon">⚠️</span>
@@ -38,7 +35,6 @@
       </div>
     }
 
-    <!-- Loading -->
     @if (aiIsLoading) {
       <div class="ai-loading">
         <div class="ai-spinner"></div>
@@ -46,7 +42,6 @@
       </div>
     }
 
-    <!-- Error -->
     @if (aiError && !aiIsLoading) {
       <div class="eq-config-error ai-error-block">
         ⚠ {{ aiError }}
@@ -57,7 +52,6 @@
       </div>
     }
 
-    <!-- Component sliders -->
     @if (aiHasComponents && !aiIsLoading) {
       <div class="ai-sliders-header">
         <span class="eq-label">Component Weights</span>
@@ -72,10 +66,15 @@
               <span class="ai-weight-val">{{ slider.weight | number:'1.2-2' }}×</span>
             </div>
             <div class="eq-slider-wrap">
-              <div class="eq-slider-marks"><span>0×</span><span>1×</span><span>2×</span></div>
-              <input type="range" class="eq-slider ai-slider" min="0" max="2" step="0.01"
-                     [value]="slider.weight"
-                     (input)="onAiWeightChange(idx, $any($event.target).value)">
+              <div class="eq-slider-marks"><span>0×</span><span>1×</span><span>2×</span><span>4×</span></div>
+              <div #track
+                   style="position:relative; height:6px; width:100%; background:#dde3ec; border-radius:3px; cursor:ew-resize; user-select:none; margin:2px 0;"
+                   (mousedown)="startAiWeightDrag($event, track, idx)">
+                <div style="position:absolute; left:0; top:0; height:100%; background:#7c3aed; border-radius:3px; pointer-events:none;"
+                     [style.width.%]="valueToPercent(slider.weight, SLIDER_MIN, SLIDER_MAX)"></div>
+                <div style="position:absolute; top:50%; width:14px; height:14px; background:#fff; border-radius:50%; border:2px solid #7c3aed; transform:translate(-50%,-50%); pointer-events:none; box-shadow:0 1px 4px rgba(0,0,0,.25);"
+                     [style.left.%]="valueToPercent(slider.weight, SLIDER_MIN, SLIDER_MAX)"></div>
+              </div>
             </div>
           </div>
         }
@@ -114,104 +113,127 @@
   </div>
 
   <div class="eq-sliders-list">
-    <div class="eq-slider-card" *ngFor="let band of bands; let i = index">
-      <div class="eq-slider-head">
-        <span class="eq-slider-label">{{ band.label }}</span>
-        <span class="eq-gain-val">{{ band.gain | number:'1.2-2' }}×</span>
-        <button class="eq-remove-btn" (click)="removeBand(i)">✕</button>
+    @for (band of bands; track band.label; let i = $index) {
+      <div class="eq-slider-card">
+        <div class="eq-slider-head">
+          <span class="eq-slider-label">{{ band.label }}</span>
+          <span class="eq-gain-val">{{ band.gain | number:'1.2-2' }}×</span>
+          <button class="eq-remove-btn" (click)="removeBand(i)">✕</button>
+        </div>
+        <div class="eq-ranges">
+          @for (r of band.ranges; track r.from) {
+            <span class="eq-range-chip">{{ r.from }}–{{ r.to }} Hz</span>
+          }
+        </div>
+        <div class="eq-slider-wrap">
+          <div class="eq-slider-marks"><span>0×</span><span>1×</span><span>2×</span><span>4×</span></div>
+          <div #track
+               style="position:relative; height:6px; width:100%; background:#dde3ec; border-radius:3px; cursor:ew-resize; user-select:none; margin:2px 0;"
+               (mousedown)="startGenericGainDrag($event, track, i)">
+            <div style="position:absolute; left:0; top:0; height:100%; background:#1a73e8; border-radius:3px; pointer-events:none;"
+                 [style.width.%]="valueToPercent(band.gain, SLIDER_MIN, SLIDER_MAX)"></div>
+            <div style="position:absolute; top:50%; width:14px; height:14px; background:#fff; border-radius:50%; border:2px solid #1a73e8; transform:translate(-50%,-50%); pointer-events:none; box-shadow:0 1px 4px rgba(0,0,0,.25);"
+                 [style.left.%]="valueToPercent(band.gain, SLIDER_MIN, SLIDER_MAX)"></div>
+          </div>
+        </div>
       </div>
-      <div class="eq-ranges">
-        <span class="eq-range-chip" *ngFor="let r of band.ranges">{{ r.from }}–{{ r.to }} Hz</span>
-      </div>
-      <div class="eq-slider-wrap">
-        <div class="eq-slider-marks"><span>0×</span><span>1×</span><span>2×</span></div>
-        <input type="range" class="eq-slider" min="0" max="2" step="0.01"
-               [value]="band.gain"
-               (input)="onGainChange(i, $any($event.target).value)">
-      </div>
-    </div>
+    }
   </div>
 
 }
 
 <!-- ══════════════════════════════════════════════════════════════════
      ADVANCED MODES  (musical / animal / human / ecg)
-     Hidden while AI mode is active to avoid visual clutter
      ══════════════════════════════════════════════════════════════ -->
 @if (!isGeneric && !isAiMode) {
 
+  <!-- ── Master domain toggle (applies to all entity cards) ── -->
+  <div class="eq-domain-tabs master-tabs">
+    <button class="eq-tab-btn"
+            [class.active]="masterTab === 'freq'"
+            (click)="setMasterTab('freq')">
+      📈 Frequency
+    </button>
+    <button class="eq-tab-btn"
+            [class.active]="masterTab === 'wavelet'"
+            (click)="setMasterTab('wavelet')">
+      〜 Wavelet
+    </button>
+  </div>
+
   <div class="eq-sliders-list">
-    <div class="eq-slider-card advanced-card" *ngFor="let entity of entities; let i = index">
+    @for (entity of entities; track entity.label; let i = $index) {
+      <div class="eq-slider-card advanced-card">
 
-      <div class="eq-slider-head">
-        <span class="eq-slider-label">{{ entity.label }}</span>
-      </div>
-
-      <div class="eq-domain-tabs">
-        <button class="eq-tab-btn"
-                [class.active]="activeTabs[i] === 'freq'"
-                (click)="setTab(i, 'freq')">
-          📈 Frequency
-        </button>
-        <button class="eq-tab-btn"
-                [class.active]="activeTabs[i] === 'wavelet'"
-                (click)="setTab(i, 'wavelet')">
-          〜 Wavelet
-        </button>
-      </div>
-
-      @if (activeTabs[i] === 'freq') {
-        <div class="eq-tab-body">
-          <div class="eq-ranges">
-            <span class="eq-range-chip" *ngFor="let r of entity.freqBands">
-              {{ r.from }}–{{ r.to }} Hz
-            </span>
-          </div>
-          <span class="eq-label">Gain ({{ entity.freqGain | number:'1.2-2' }}×)</span>
-          <div class="eq-slider-wrap">
-            <div class="eq-slider-marks"><span>0×</span><span>1×</span><span>2×</span></div>
-            <input type="range" class="eq-slider" min="0" max="2" step="0.01"
-                   [value]="entity.freqGain"
-                   (input)="onEntityFreqGainChange(i, $any($event.target).value)">
-          </div>
+        <div class="eq-slider-head">
+          <span class="eq-slider-label">{{ entity.label }}</span>
         </div>
-      }
 
-      @if (activeTabs[i] === 'wavelet') {
-        <div class="eq-tab-body">
-          <span class="eq-label">Wavelet</span>
-          <select class="eq-input eq-select"
-                  [value]="entity.wavelet"
-                  (change)="onWaveletNameChange(i, $any($event.target).value)">
-            <option value="haar">Haar</option>
-            <option value="db2">Daubechies 2 (db2)</option>
-            <option value="db4">Daubechies 4 (db4)</option>
-            <option value="db6">Daubechies 6 (db6)</option>
-            <option value="db8">Daubechies 8 (db8)</option>
-            <option value="sym4">Symlet 4 (sym4)</option>
-            <option value="sym5">Symlet 5 (sym5)</option>
-            <option value="coif2">Coiflet 2 (coif2)</option>
-            <option value="bior3.3">Biorthogonal 3.3</option>
-          </select>
+        <!-- ── Frequency tab ─────────────────────────────────────────────── -->
+        @if (masterTab === 'freq') {
+          <div class="eq-tab-body">
 
-          <span class="eq-label" style="margin-top:8px">Decomposition Levels</span>
-          <div class="eq-ranges">
-            <span class="eq-range-chip wavelet-chip" *ngFor="let wb of entity.waveletBands">
-              L{{ wb.level }} — {{ wb.name }}
-            </span>
+            <div style="display:flex; flex-wrap:wrap; gap:3px; margin-bottom:8px;">
+              @for (r of entity.freqBands; track r.from) {
+                <span class="eq-range-chip">{{ r.from }}–{{ r.to }} Hz</span>
+              }
+            </div>
+
+            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:4px;">
+              <span class="eq-label" style="margin:0;">{{ isEcg ? 'Intensity' : 'Master Gain' }}</span>
+              <span class="eq-gain-val">{{ entity.freqGain | number:'1.2-2' }}×</span>
+            </div>
+            <div class="eq-slider-marks"><span>0×</span><span>1×</span><span>2×</span><span>4×</span></div>
+            <div #track
+                 style="position:relative; height:6px; width:100%; background:#dde3ec; border-radius:3px; cursor:ew-resize; user-select:none; margin:2px 0;"
+                 (mousedown)="startEntityFreqGainDrag($event, track, i)">
+              <div style="position:absolute; left:0; top:0; height:100%; background:#1a73e8; border-radius:3px; pointer-events:none;"
+                   [style.width.%]="valueToPercent(entity.freqGain, SLIDER_MIN, SLIDER_MAX)"></div>
+              <div style="position:absolute; top:50%; width:14px; height:14px; background:#fff; border-radius:50%; border:2px solid #1a73e8; transform:translate(-50%,-50%); pointer-events:none; box-shadow:0 1px 4px rgba(0,0,0,.25);"
+                   [style.left.%]="valueToPercent(entity.freqGain, SLIDER_MIN, SLIDER_MAX)"></div>
+            </div>
+
           </div>
+        }
 
-          <span class="eq-label">Gain ({{ entity.waveletGain | number:'1.2-2' }}×)</span>
-          <div class="eq-slider-wrap">
-            <div class="eq-slider-marks"><span>0×</span><span>1×</span><span>2×</span></div>
-            <input type="range" class="eq-slider wavelet-slider" min="0" max="2" step="0.01"
-                   [value]="entity.waveletGain"
-                   (input)="onEntityWaveletGainChange(i, $any($event.target).value)">
+        <!-- ── Wavelet tab ───────────────────────────────────────── -->
+        @if (masterTab === 'wavelet') {
+          <div class="eq-tab-body">
+
+            <!-- Wavelet name shown as read-only info, not editable -->
+            <div style="display:flex; align-items:center; gap:6px; margin-bottom:8px;">
+              <span class="eq-label" style="margin:0;">Wavelet</span>
+              <span class="eq-range-chip" style="font-family:monospace; font-size:12px;">{{ entity.wavelet }}</span>
+            </div>
+
+            <span class="eq-label">Decomposition Levels</span>
+            <div class="eq-ranges">
+              @for (wb of entity.waveletBands; track wb.level) {
+                <span class="eq-range-chip wavelet-chip">
+                  L{{ wb.level }} — {{ wb.name }}
+                </span>
+              }
+            </div>
+
+            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:4px; margin-top:6px;">
+              <span class="eq-label" style="margin:0;">Gain</span>
+              <span style="font-size:11px; font-weight:700; color:#7c3aed;">{{ entity.waveletGain | number:'1.2-2' }}×</span>
+            </div>
+            <div class="eq-slider-marks"><span>0×</span><span>1×</span><span>2×</span><span>4×</span></div>
+            <div #track
+                 style="position:relative; height:6px; width:100%; background:#dde3ec; border-radius:3px; cursor:ew-resize; user-select:none; margin:2px 0;"
+                 (mousedown)="startEntityWaveletGainDrag($event, track, i)">
+              <div style="position:absolute; left:0; top:0; height:100%; background:#7c3aed; border-radius:3px; pointer-events:none;"
+                   [style.width.%]="valueToPercent(entity.waveletGain, SLIDER_MIN, SLIDER_MAX)"></div>
+              <div style="position:absolute; top:50%; width:14px; height:14px; background:#fff; border-radius:50%; border:2px solid #7c3aed; transform:translate(-50%,-50%); pointer-events:none; box-shadow:0 1px 4px rgba(0,0,0,.25);"
+                   [style.left.%]="valueToPercent(entity.waveletGain, SLIDER_MIN, SLIDER_MAX)"></div>
+            </div>
+
           </div>
-        </div>
-      }
+        }
 
-    </div>
+      </div>
+    }
   </div>
 
 }

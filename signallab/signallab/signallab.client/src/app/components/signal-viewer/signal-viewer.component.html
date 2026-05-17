@@ -1,4 +1,4 @@
-<input #fileInput type="file" accept=".mp3,.wav,.json,.mat" hidden (change)="onFileSelected($event)">
+<input #fileInput type="file" accept=".mp3,.wav,.json,.mat, .csv" hidden (change)="onFileSelected($event)">
 
 <div class="sv-root">
 
@@ -51,6 +51,7 @@
       (waveletChange)="onWaveletChange($event)"
       (waveletOutputChange)="onWaveletOutputChange($event)"
       (aiOutputChange)="onAiOutputChange($event)"
+      (humanEqChange)="onHumanEqChange($event)"
     />
     </aside>
 

@@ -1,5 +1,6 @@
 import numpy as np
 from scipy import signal
+from scipy.signal import resample
 
 def apply_frequency_gains(signal, sampling_rate, gain_bands):
     signal = np.array(signal)
@@ -104,3 +105,38 @@ def apply_mask_eq(
         num_samples=n,
         equalized_signal=equalized.tolist(),
     )
+
+
+
+def EqualizeAudio(signal, sr, male_gain, female_gain):
+    window = 4096
+    out    = np.zeros(len(signal))
+    weight = np.zeros(len(signal))
+    hop = 1024
+    alpha  = male_gain / (male_gain + female_gain + 1e-9)
+
+    win    = np.hanning(window)
+    male_masks = np.load("male_masks.npy")
+    female_masks = np.load("female_masks.npy")
+    target_length = male_masks.shape[0] * hop + window
+    signal = resample(signal, target_length)
+    frame_starts = list(range(0, len(signal) - window, hop))
+
+    for idx, i in enumerate(frame_starts):
+        Mix_fft = np.fft.rfft(signal[i:i+window] * win)
+
+        m_mask = male_masks[idx]
+        f_mask = female_masks[idx]
+
+        eq_gain    = alpha * m_mask + (1 - alpha) * f_mask
+        Output_fft = Mix_fft * eq_gain
+        out_chunk  = np.fft.irfft(Output_fft, n=window)
+
+        out   [i:i+window] += out_chunk * win
+        weight[i:i+window] += win**2
+
+    out /= np.maximum(weight, 1e-8)
+    out /= np.max(np.abs(out)) + 1e-9
+    return out.astype(np.float32)
+
+

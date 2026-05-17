@@ -208,7 +208,7 @@ export class SignalViewerComponent implements OnInit, AfterViewInit, OnDestroy {
     this.loadedFile = file;
     const ext = file.name.split('.').pop()?.toLowerCase();
     if      (ext === 'json') await this.loadJsonSignal(file);
-    else if (ext === 'mat' || ext == "hea")  await this.loadMatFile(file);
+    else if (ext === 'mat' || ext == "hea" || ext == "csv")  await this.loadMatFile(file);
     else                     await this.loadAudioFile(file);
     (event.target as HTMLInputElement).value = '';
   }
@@ -218,7 +218,8 @@ export class SignalViewerComponent implements OnInit, AfterViewInit, OnDestroy {
     this.ensureAudioCtx();
     try {
       this.inputAudioBuffer = await this.audioCtx!.decodeAudioData(await file.arrayBuffer());
-      this.sampleRate       = this.inputAudioBuffer.sampleRate;
+      this.sampleRate       = 44100
+      console.log(this.sampleRate)
       this.inputSamples     = this.inputAudioBuffer.getChannelData(0).slice();
     } catch {
       alert('Cannot decode audio. Use MP3 or WAV.'); return;
@@ -548,6 +549,24 @@ async onWaveletOutputChange(processed: Float32Array): Promise<void> {
   this.cdr.detectChanges();
   setTimeout(() => {
     this.drawFft(OUTPUT_FFT_ID, this.outputFftMagnitude, 'Output FFT (Wavelet)', '#34a853');
+  }, 0);
+}
+
+async onHumanEqChange(processed: Float32Array): Promise<void> {
+  this.outputSamples = processed;
+  if (this.isAudioSignal) this.rebuildOutputAudioBuffer();
+  this.eqVersion++;
+
+  try {
+    this.outputFftMagnitude = await this.fetchFftForSignal(processed);
+  } catch (err) {
+    console.error('Could not fetch human EQ output FFT:', err);
+  }
+
+  this.isProcessing = false;
+  this.cdr.detectChanges();
+  setTimeout(() => {
+    this.drawFft(OUTPUT_FFT_ID, this.outputFftMagnitude, 'Output FFT (Human EQ)', '#34a853');
   }, 0);
 }
 

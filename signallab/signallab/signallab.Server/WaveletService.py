@@ -15,17 +15,19 @@ def decompose_wavelet(signal: np.ndarray, wavelet: str = 'db4', level: int = 5) 
     -------
     dict with keys:
         - 'approximation' : lowest frequency component (cA at deepest level)
-        - 'detail_1' ... 'detail_N' : detail levels from highest to lowest frequency
+        - 'detail_1' ... 'detail_N' : detail levels from lowest to highest frequency
+          (detail_1 = coarsest detail, detail_N = finest detail)
     """
-    coeffs = pywt.wavedec(signal, wavelet, level=level)
+    coeffs = pywt.wavedec(signal, wavelet, level=level, mode='periodization')
 
-    # coeffs[0]  = approximation (cA) — lowest frequency
-    # coeffs[1:] = details cD_level down to cD_1 (high -> low freq)
+    # coeffs[0]      = approximation (cA)
+    # coeffs[1]      = cD_level (coarsest detail) → detail_level
+    # coeffs[-1]     = cD_1    (finest detail)    → detail_1
     result = {
         "approximation": coeffs[0].tolist(),
     }
 
-    for i, detail in enumerate(coeffs[1:], start=1):
+    for i, detail in enumerate(coeffs[1:], start=level):
         result[f"detail_{i}"] = detail.tolist()
 
     return result
@@ -47,7 +49,7 @@ def apply_wavelet_gains(
     signal: np.ndarray,
     gain_bands: list[dict],
     wavelet: str = 'db4',
-    level: int = 5,
+    level: int = 8,
 ) -> tuple[dict, np.ndarray]:
     """
     Apply per-level gains to a signal in the wavelet domain, analogous
@@ -78,8 +80,8 @@ def apply_wavelet_gains(
         reconstructed_signal : np.ndarray rebuilt via waverec
     """
     signal = np.asarray(signal, dtype=np.float64)
-    coeffs = pywt.wavedec(signal, wavelet, level=level)
-    level_names = ["approximation"] + [f"detail_{i}" for i in range(1, level + 1)]
+    coeffs = pywt.wavedec(signal, wavelet, level=level, mode='periodization')
+    level_names = ["approximation"] + [f"detail_{i}" for i in range(level, 0, -1)]
 
     # Work on mutable copies
     modified = [c.copy() for c in coeffs]
@@ -100,11 +102,11 @@ def apply_wavelet_gains(
 
         # Optional coefficient-range mask
         c_start = band.get("coeff_start", 0)
-        c_end   = band.get("coeff_end",   len(coeff))
+        c_end = min(band.get("coeff_end", len(coeff)), len(coeff))
         coeff[c_start:c_end] *= gain
 
     # Reconstruct
-    reconstructed = pywt.waverec(modified, wavelet)
+    reconstructed = pywt.waverec(modified, wavelet, mode='periodization')
     # waverec may add 1 sample — trim to original length
     reconstructed = reconstructed[:len(signal)]
 

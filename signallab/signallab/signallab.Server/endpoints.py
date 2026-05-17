@@ -15,8 +15,8 @@ import io
 
 
 from ECGService import mat_to_json
-from FrequencyTransformService import apply_frequency_gains, compute_spectrogram, EQResult, apply_mask_eq
-from AIService import SeperateAudio, SeperateInstruments
+from FrequencyTransformService import apply_frequency_gains, compute_spectrogram, EQResult, apply_mask_eq, EqualizeAudio
+from AIService import SeperateAudio, SeperateInstruments, SeparateAnimals
 from AI_ECG_Service import decompose_ecg, load_model, LABEL_NAMES
 from WaveletService import apply_wavelet_gains
 
@@ -55,6 +55,13 @@ class EQResponse(BaseModel):
     equalized_signal: list[float]
 
 
+class AudioEqualizationRequest(BaseModel):
+    signal: List[float]
+    sampling_rate: float
+    male_gain: float
+    female_gain: float
+
+#python -m uvicorn endpoints:app --reload
 app = FastAPI()
 origins = ["*"]
 app.add_middleware(GZipMiddleware, minimum_size=1000)
@@ -72,7 +79,7 @@ ecg_model = load_model(ECG_MODEL_PATH)
 
 app.mount("/segmentedFiles", StaticFiles(directory="segmentedFiles"), name="segmentedFiles")
 ALLOWED_Dataset_Extensions_For_Audio = {'.mp3', '.wav'}
-ALLOWED_Dataset_Extensions_For_ECG_Conversion = {'.mat', '.hea'}
+ALLOWED_Dataset_Extensions_For_ECG_Conversion = {'.mat', '.hea', '.dat', '.csv'}
 
 
 @app.post("/convertecgtojson")
@@ -174,6 +181,25 @@ async def ApplyWaveletGain(request: WaveletEqualizationRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.post("/equalizeaudio")
+async def equalizeAudio(request: AudioEqualizationRequest):
+    try:
+        
+        # Apply the frequency gains
+        output_signal = EqualizeAudio(
+            signal=request.signal,
+            sr = request.sampling_rate,
+            male_gain=request.male_gain,
+            female_gain=request.female_gain)
+        
+        # Convert NumPy arrays back to Python lists for JSON serialization
+        return {
+            "equalized_audio": output_signal.tolist(),
+        }
+        
+    except Exception as e:
+        # Catch any unexpected errors (like bad data causing math issues)
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 
@@ -241,6 +267,39 @@ async def SegmentMusic(file: UploadFile):
             )
     
 
+@app.post("/segmentanimals")
+async def SegmentAnimals(file: UploadFile):
+    try:
+        contents = await file.read()
+        file_extension = os.path.splitext(file.filename)[-1]
+        if file_extension not in ALLOWED_Dataset_Extensions_For_Audio:
+            return JSONResponse(
+            content = {
+                "message:": f"Invalid file type. Allowed audio formats: {', '.join(ALLOWED_Dataset_Extensions_For_Audio)}"
+                },
+            status_code=400
+            )
+        
+
+        with open("uploadedFiles/Animals/" + file.filename, "wb") as binary_file:
+            binary_file.write(contents)
+        
+        response = SeparateAnimals("uploadedFiles/Animals/" + file.filename)
+        return JSONResponse(content=response)
+
+    except Exception as e:
+        return JSONResponse(content={"error": str(e)}, status_code=500)
+
+    except Exception:
+        return JSONResponse(
+            content = {
+                "message:": Exception
+                },
+            status_code=500
+            )
+    
+
+
 @app.post("/decomposeecg")
 async def decompose_ecg_endpoint(file: UploadFile = File(...)):
     """
@@ -254,9 +313,6 @@ async def decompose_ecg_endpoint(file: UploadFile = File(...)):
         - fs         : int                           (sampling frequency, always 360)
         - symbols    : dict[symbol -> full name]     (label reference)
     """
-    if not file.filename.endswith(".mat"):
-        raise HTTPException(status_code=400, detail="Only .mat files are accepted.")
-
     contents = await file.read()
     file_extension = os.path.splitext(file.filename)[-1]
     if file_extension not in ALLOWED_Dataset_Extensions_For_ECG_Conversion:
